@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="portal-version" content="p2">
+<title>INSPECTEX — البوابة الموحّدة</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;font-family:'Cairo','Segoe UI',Tahoma,sans-serif}
+  html,body{height:100%;overflow:hidden;background:#0a1730}
+  #bar{
+    height:56px;background:linear-gradient(135deg,#012060,#0a3a8f);
+    display:flex;align-items:center;gap:10px;padding:0 14px;
+    box-shadow:0 2px 12px rgba(0,0,0,.3);position:relative;z-index:5;
+  }
+  #bar .brand{display:flex;align-items:center;gap:8px;color:#fff;font-weight:900;font-size:15px;white-space:nowrap}
+  #bar .brand .dot{width:9px;height:9px;border-radius:50%;background:#9cabc2;box-shadow:0 0 8px #9cabc2}
+  #bar .spacer{flex:1}
+  .navbtn{
+    display:flex;align-items:center;gap:7px;border:1px solid rgba(255,255,255,.18);
+    background:rgba(255,255,255,.06);color:rgba(255,255,255,.72);
+    padding:8px 15px;border-radius:10px;font-weight:800;font-size:13px;cursor:pointer;
+    transition:all .15s;white-space:nowrap;
+  }
+  .navbtn:hover{background:rgba(255,255,255,.13);color:#fff}
+  .navbtn.active{background:#fff;color:#012060;border-color:#fff;box-shadow:0 3px 10px rgba(0,0,0,.2)}
+  .navbtn .ic{font-size:16px}
+  #reloadBtn{background:transparent;border:1px solid rgba(255,255,255,.2);color:#cdd7e8;width:38px;height:38px;border-radius:10px;cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center}
+  #reloadBtn:hover{background:rgba(255,255,255,.1);color:#fff}
+  #stage{position:absolute;top:56px;left:0;right:0;bottom:0}
+  iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#fff}
+  iframe.hidden{visibility:hidden;pointer-events:none;z-index:0}
+  iframe.shown{visibility:visible;z-index:1}
+  /* شاشة اختيار أولى */
+  #chooser{position:absolute;inset:0;background:linear-gradient(135deg,#071233,#0d2456);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;z-index:3;padding:24px}
+  #chooser h1{color:#fff;font-size:26px;font-weight:900;text-align:center}
+  #chooser h1 span{color:#9cabc2;font-size:13px;font-weight:600;display:block;letter-spacing:3px;margin-top:6px}
+  .cards{display:flex;gap:20px;flex-wrap:wrap;justify-content:center}
+  .card{
+    width:220px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);
+    border-radius:18px;padding:26px 20px;text-align:center;cursor:pointer;transition:all .2s;color:#fff;
+  }
+  .card:hover{transform:translateY(-4px);background:rgba(255,255,255,.1);border-color:#9cabc2;box-shadow:0 10px 30px rgba(0,0,0,.3)}
+  .card .emoji{font-size:42px;margin-bottom:12px}
+  .card .t{font-size:16px;font-weight:900;margin-bottom:6px}
+  .card .d{font-size:11px;color:#9cabc2;line-height:1.7}
+  @media(max-width:640px){
+    #bar .brand span.full{display:none}
+    .navbtn{padding:8px 11px;font-size:12px}
+    .navbtn .lbl{display:none}
+    .navbtn .ic{font-size:18px}
+  }
+</style>
+</head>
+<body>
+  <div id="bar">
+    <div class="brand"><span class="dot"></span><span class="full">INSPECTEX</span></div>
+    <div class="spacer"></div>
+    <button class="navbtn" id="tabPay" onclick="showSys('pay')"><span class="ic">📊</span><span class="lbl">المسيرات والمخالصات</span></button>
+    <button class="navbtn" id="tabVou" onclick="showSys('vou')"><span class="ic">🧾</span><span class="lbl">السندات والإقامات</span></button>
+    <button class="navbtn" id="tabCus" onclick="showSys('cus')"><span class="ic">📦</span><span class="lbl">العهد</span></button>
+    <button id="reloadBtn" title="إعادة تحميل النظام الحالي" onclick="reloadCurrent()">⟳</button>
+  </div>
+
+  <div id="stage">
+    <iframe id="fPay" class="hidden" title="نظام المسيرات"></iframe>
+    <iframe id="fVou" class="hidden" title="نظام السندات"></iframe>
+    <iframe id="fCus" class="hidden" title="نظام العهد"></iframe>
+
+    <div id="chooser">
+      <h1>البوابة الموحّدة<span>INSPECTEX UNIFIED PORTAL</span></h1>
+      <div class="cards">
+        <div class="card" onclick="showSys('pay')">
+          <div class="emoji">📊</div>
+          <div class="t">المسيرات والمخالصات</div>
+          <div class="d">مسيرات الرواتب الشهرية · المخالصات · التقارير · التواقيع</div>
+        </div>
+        <div class="card" onclick="showSys('vou')">
+          <div class="emoji">🧾</div>
+          <div class="t">السندات والإقامات</div>
+          <div class="d">سندات الصرف · اعتماد الرئيس التنفيذي · تجديد الإقامات · الاستحقاقات</div>
+        </div>
+        <div class="card" onclick="showSys('cus')">
+          <div class="emoji">📦</div>
+          <div class="t">العهد</div>
+          <div class="d">تسليم واستلام عهد الموظفين · توقيع إلكتروني</div>
+        </div>
+      </div>
+      <div style="color:#5f7099;font-size:11px">كل نظام مستقل ببياناته الخاصة — اختر أيّهما للبدء</div>
+    </div>
+  </div>
+
+<script>
+  var SRC = { pay:'payroll.html', vou:'vouchers.html', cus:'custody.html' };
+  var FRAME = { pay:'fPay', vou:'fVou', cus:'fCus' };
+  var loaded = { pay:false, vou:false, cus:false };
+  var current = null;
+
+  function ensureLoaded(sys){
+    if(loaded[sys]) return;
+    var f = document.getElementById(FRAME[sys]);
+    f.src = SRC[sys];
+    loaded[sys] = true;
+  }
+  function showSys(sys){
+    ensureLoaded(sys);
+    current = sys;
+    Object.keys(FRAME).forEach(function(k){
+      document.getElementById(FRAME[k]).className = (k===sys ? 'shown' : 'hidden');
+    });
+    document.getElementById('tabPay').classList.toggle('active', sys==='pay');
+    document.getElementById('tabVou').classList.toggle('active', sys==='vou');
+    document.getElementById('tabCus').classList.toggle('active', sys==='cus');
+    document.getElementById('chooser').style.display='none';
+    try{ localStorage.setItem('portal_last', sys); }catch(e){}
+  }
+  function reloadCurrent(){
+    if(!current) return;
+    var f = document.getElementById(FRAME[current]);
+    try{ f.contentWindow.location.reload(); }catch(e){ if(SRC[current]) f.src = SRC[current]; }
+  }
+  // افتح آخر نظام استُخدم تلقائياً
+  try{
+    var last = localStorage.getItem('portal_last');
+    if(last && FRAME[last]) showSys(last);
+  }catch(e){}
+</script>
+</body>
+</html>
