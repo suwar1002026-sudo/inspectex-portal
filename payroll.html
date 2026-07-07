@@ -593,7 +593,7 @@ body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;background:linear-gradient(1
         
 const SB_URL = 'https://jyuduksmdklqjddvkofj.supabase.co';
 const SB_KEY = 'sb_publishable_aBLK-zI7b2ViJf_Cd34QkQ_NHb1VhlM';
-const CEO_PIN = (function(){try{return localStorage.getItem('inspectex_ceo_pin')||'1234';}catch(e){return '1234';}})(); // رمز الرئيس التنفيذي — غيّره لاحقاً
+let CEO_PIN = (function(){try{return localStorage.getItem('inspectex_ceo_pin')||'1234';}catch(e){return '1234';}})(); // رمز الرئيس التنفيذي — غيّره لاحقاً
 let ENG_PIN = (function(){try{return localStorage.getItem('inspectex_eng_pin')||'1111';}catch(e){return '1111';}})(); // رمز المهندس أيمن (قابل للتغيير)
 try{ var _ep=localStorage.getItem('inspectex_eng_pin'); if(_ep) ENG_PIN=_ep; }catch(e){}
 
@@ -660,6 +660,35 @@ window.renderContent = function(approval){
       <div><div class="net-lbl">NET PAYROLL · صافي المسير</div><div class="net-cur" style="margin-top:2px">ريال سعودي</div></div>
       <div style="text-align:left"><div class="net-val">${fmt(s.net)}</div></div>
     </div>
+
+    ${(function(){
+      var emps = s.employees || [];
+      if(!emps.length) return '';
+      var rows = emps.map(function(e){
+        return '<tr style="border-bottom:1px solid #f1f5f9">'
+          +'<td style="padding:7px 6px;font-size:11px;color:#0d1b35;text-align:right">'+(e.name||'')+'</td>'
+          +'<td style="padding:7px 6px;font-size:10px;color:#94a3b8;text-align:right">'+(e.cat||'')+'</td>'
+          +'<td style="padding:7px 6px;font-size:11px;color:#1d4ed8;text-align:left">'+fmt(e.gross)+'</td>'
+          +'<td style="padding:7px 6px;font-size:11px;color:#dc2626;text-align:left">'+fmt(e.deductions)+'</td>'
+          +'<td style="padding:7px 6px;font-size:11px;font-weight:800;color:#16a34a;text-align:left">'+fmt(e.net)+'</td>'
+          +'</tr>';
+      }).join('');
+      return '<div style="margin-bottom:16px">'
+        +'<button onclick="var t=document.getElementById(\'empDetailsBox\');var i=document.getElementById(\'empDetailsIcon\');if(t.style.display===\'none\'){t.style.display=\'block\';i.style.transform=\'rotate(180deg)\';}else{t.style.display=\'none\';i.style.transform=\'rotate(0deg)\';}" style="width:100%;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:11px 14px;font-size:12px;font-weight:700;color:#0d1b35;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:space-between">'
+        +'<span><i class="ti ti-table" style="margin-left:6px"></i>عرض تفاصيل جميع الموظفين ('+emps.length+')</span>'
+        +'<i id="empDetailsIcon" class="ti ti-chevron-down" style="transition:.2s"></i>'
+        +'</button>'
+        +'<div id="empDetailsBox" style="display:none;max-height:260px;overflow-y:auto;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 10px 10px">'
+        +'<table style="width:100%;border-collapse:collapse">'
+        +'<thead style="position:sticky;top:0;background:#0d1b35;color:#fff"><tr>'
+        +'<th style="padding:8px 6px;font-size:9px;font-weight:700;text-align:right">الاسم</th>'
+        +'<th style="padding:8px 6px;font-size:9px;font-weight:700;text-align:right">القسم</th>'
+        +'<th style="padding:8px 6px;font-size:9px;font-weight:700;text-align:left">المستحق</th>'
+        +'<th style="padding:8px 6px;font-size:9px;font-weight:700;text-align:left">الخصم</th>'
+        +'<th style="padding:8px 6px;font-size:9px;font-weight:700;text-align:left">الصافي</th>'
+        +'</tr></thead><tbody>'+rows+'</tbody></table>'
+        +'</div></div>';
+    })()}
 
     ${(function(){
       var engDone = approval.eng_status === 'approved';
@@ -833,37 +862,79 @@ loadApproval();
   <div class="dd">
     <button class="btn b-ghost" onclick="toggleMore(event)"><i class="ti ti-dots"></i> المزيد</button>
     <div class="dd-menu" id="moreMenu">
-      <div class="dd-head">المستندات والتصدير</div>
-      <button class="dd-item" onclick="closeMore();exportExcel()"><i class="ti ti-file-spreadsheet"></i> تصدير Excel</button>
-      <button class="dd-item" onclick="closeMore();exportPDF()"><i class="ti ti-file-type-pdf"></i> تصدير PDF</button>
-      <button class="dd-item" onclick="closeMore();openGSheet()"><i class="ti ti-brand-google"></i> ربط Google Sheets</button>
-      <button class="dd-item" onclick="closeMore();om('importM')"><i class="ti ti-table-import"></i> رفع بيانات (إكسل)</button>
-      <div class="dd-sep"></div>
-      <div class="dd-head">البيانات والنسخ</div>
-      <button class="dd-item" onclick="closeMore();saveToFile()" style="color:#7c3aed;font-weight:700"><i class="ti ti-device-floppy" style="color:#7c3aed"></i> حفظ في الملف</button>
-      <button class="dd-item" onclick="closeMore();window._manualCloudSave=true;cloudSaveMDB();notify('☁️ جارٍ الرفع للسحابة...')" style="color:#0ea5e9;font-weight:700"><i class="ti ti-cloud-upload" style="color:#0ea5e9"></i> رفع البيانات للسحابة</button>
-      <button class="dd-item" onclick="closeMore();cloudRestoreManual()" style="color:#0ea5e9;font-weight:700"><i class="ti ti-cloud-download" style="color:#0ea5e9"></i> استرجاع من السحابة</button>
-      <button class="dd-item" onclick="closeMore();forceRefreshSystem()"><i class="ti ti-refresh-alert" style="color:#dc2626"></i> تحديث قسري (إزالة العفريت)</button>
-      <button class="dd-item" onclick="closeMore();openApproverSettings()"><i class="ti ti-users" style="color:var(--gold2)"></i> المعتمِدون (الأسماء والأرقام)</button>
-      <button class="dd-item" onclick="closeMore();openChangeApprovalPins()"><i class="ti ti-shield-lock" style="color:var(--gold2)"></i> رموز الاعتماد (المهندس/الرئيس)</button>
-      <button class="dd-item" onclick="closeMore();openRenameSheets()"><i class="ti ti-edit" style="color:var(--gold2)"></i> مسميات المسيرات</button>
-      <button class="dd-item" onclick="closeMore();openCompanySettings()"><i class="ti ti-building" style="color:var(--gold2)"></i> بيانات الشركة</button>
-      <button class="dd-item" onclick="closeMore();openArchive()" style="color:#64748b;font-weight:700"><i class="ti ti-archive" style="color:#64748b"></i> الموظفون المُرحّلون (إرجاع)</button>
-      <div style="height:1px;background:#e2e8f0;margin:6px 0"></div>
-      <button class="dd-item" onclick="closeSystem()" style="color:#dc2626;font-weight:700"><i class="ti ti-power" style="color:#dc2626"></i> إغلاق النظام بأمان</button>
-      <button class="dd-item" onclick="closeMore();saveToGoogleDrive()" style="color:#1a73e8;font-weight:700"><i class="ti ti-brand-google-drive" style="color:#1a73e8"></i> رفع على Drive</button>
-      <button class="dd-item" onclick="closeMore();om('bakM')"><i class="ti ti-database"></i> النسخ الاحتياطي</button>
-      <button class="dd-item" onclick="closeMore();repeatLastMonth()"><i class="ti ti-copy"></i> تكرار للشهر القادم</button>
-      <button class="dd-item" onclick="closeMore();openList()"><i class="ti ti-users"></i> سجل الموظفين</button>
-      <button class="dd-item" onclick="closeMore();openCustody()"><i class="ti ti-briefcase"></i> نظام العهدة</button>
-      <button class="dd-item" onclick="closeMore();openAuditLog()"><i class="ti ti-history"></i> سجل التدقيق</button>
-      <button class="dd-item" onclick="closeMore();clearAllEmployees()" style="color:#dc2626"><i class="ti ti-trash" style="color:#dc2626"></i> حذف كل الموظفين</button>
-      <div class="dd-sep"></div>
-      <div class="dd-head">الحماية</div>
-      <button class="dd-item" onclick="closeMore();om('secM')"><i class="ti ti-shield-lock"></i> رموز الحماية</button>
+      <div style="padding:6px 6px 8px;position:sticky;top:0;background:#fff;z-index:2">
+        <div style="display:flex;align-items:center;gap:6px;background:#f1f5f9;border-radius:8px;padding:7px 10px">
+          <i class="ti ti-search" style="color:#94a3b8;font-size:14px"></i>
+          <input id="moreSearch" type="text" placeholder="بحث في القائمة..." oninput="filterMoreMenu(this.value)" style="border:none;background:transparent;outline:none;flex:1;font-family:inherit;font-size:12.5px">
+        </div>
+      </div>
+
+      <div class="dd-group" data-group="1">
+        <button class="dd-tree-head" onclick="toggleTreeGroup(this)"><i class="ti ti-chevron-left dd-tree-caret"></i><i class="ti ti-file-export"></i><span>التصدير والاستيراد</span></button>
+        <div class="dd-tree-items" style="display:none">
+          <button class="dd-item" onclick="closeMore();exportExcel()"><i class="ti ti-file-spreadsheet"></i> تصدير Excel</button>
+          <button class="dd-item" onclick="closeMore();exportPDF()"><i class="ti ti-file-type-pdf"></i> تصدير PDF</button>
+          <button class="dd-item" onclick="closeMore();openGSheet()"><i class="ti ti-brand-google"></i> ربط Google Sheets</button>
+          <button class="dd-item" onclick="closeMore();om('importM')"><i class="ti ti-table-import"></i> رفع بيانات (إكسل)</button>
+        </div>
+      </div>
+
+      <div class="dd-group" data-group="1">
+        <button class="dd-tree-head" onclick="toggleTreeGroup(this)"><i class="ti ti-chevron-left dd-tree-caret"></i><i class="ti ti-cloud"></i><span>السحابة والنسخ الاحتياطي</span></button>
+        <div class="dd-tree-items" style="display:none">
+          <button class="dd-item" onclick="closeMore();saveToFile()" style="color:#7c3aed;font-weight:700"><i class="ti ti-device-floppy" style="color:#7c3aed"></i> حفظ في الملف</button>
+          <button class="dd-item" onclick="closeMore();window._manualCloudSave=true;cloudSaveMDB();notify('☁️ جارٍ الرفع للسحابة...')" style="color:#0ea5e9;font-weight:700"><i class="ti ti-cloud-upload" style="color:#0ea5e9"></i> رفع البيانات للسحابة</button>
+          <button class="dd-item" onclick="closeMore();cloudRestoreManual()" style="color:#0ea5e9;font-weight:700"><i class="ti ti-cloud-download" style="color:#0ea5e9"></i> استرجاع من السحابة</button>
+          <button class="dd-item" onclick="closeMore();saveToGoogleDrive()" style="color:#1a73e8;font-weight:700"><i class="ti ti-brand-google-drive" style="color:#1a73e8"></i> رفع على Drive</button>
+          <button class="dd-item" onclick="closeMore();om('bakM')"><i class="ti ti-database"></i> النسخ الاحتياطي</button>
+          <button class="dd-item" onclick="closeMore();forceRefreshSystem()"><i class="ti ti-refresh-alert" style="color:#dc2626"></i> تحديث قسري (إزالة العفريت)</button>
+        </div>
+      </div>
+
+      <div class="dd-group" data-group="1">
+        <button class="dd-tree-head" onclick="toggleTreeGroup(this)"><i class="ti ti-chevron-left dd-tree-caret"></i><i class="ti ti-shield-check"></i><span>الاعتماد والإعدادات</span></button>
+        <div class="dd-tree-items" style="display:none">
+          <button class="dd-item" onclick="closeMore();showApprovalLinkModal()" style="color:#16a34a;font-weight:700"><i class="ti ti-link" style="color:#16a34a"></i> رابط اعتماد المسيرات</button>
+          <button class="dd-item" onclick="closeMore();openApproverSettings()"><i class="ti ti-users" style="color:var(--gold2)"></i> المعتمِدون (الأسماء والأرقام)</button>
+          <button class="dd-item" onclick="closeMore();openChangeApprovalPins()"><i class="ti ti-shield-lock" style="color:var(--gold2)"></i> رموز الاعتماد (المهندس/الرئيس)</button>
+          <button class="dd-item" onclick="closeMore();openRenameSheets()"><i class="ti ti-edit" style="color:var(--gold2)"></i> مسميات المسيرات</button>
+          <button class="dd-item" onclick="closeMore();openCompanySettings()"><i class="ti ti-building" style="color:var(--gold2)"></i> بيانات الشركة</button>
+        </div>
+      </div>
+
+      <div class="dd-group" data-group="1">
+        <button class="dd-tree-head" onclick="toggleTreeGroup(this)"><i class="ti ti-chevron-left dd-tree-caret"></i><i class="ti ti-list-details"></i><span>الأنظمة والسجلات</span></button>
+        <div class="dd-tree-items" style="display:none">
+          <button class="dd-item" onclick="closeMore();openList()"><i class="ti ti-users"></i> سجل الموظفين</button>
+          <button class="dd-item" onclick="closeMore();openCustody()"><i class="ti ti-briefcase"></i> نظام العهدة</button>
+          <button class="dd-item" onclick="closeMore();openAuditLog()"><i class="ti ti-history"></i> سجل التدقيق</button>
+          <button class="dd-item" onclick="closeMore();openArchive()" style="color:#64748b;font-weight:700"><i class="ti ti-archive" style="color:#64748b"></i> الموظفون المُرحّلون (إرجاع)</button>
+          <button class="dd-item" onclick="closeMore();repeatLastMonth()"><i class="ti ti-copy"></i> تكرار للشهر القادم</button>
+        </div>
+      </div>
+
+      <div class="dd-group" data-group="1">
+        <button class="dd-tree-head" onclick="toggleTreeGroup(this)"><i class="ti ti-chevron-left dd-tree-caret"></i><i class="ti ti-alert-triangle"></i><span>الحماية والخطر</span></button>
+        <div class="dd-tree-items" style="display:none">
+          <button class="dd-item" onclick="closeMore();om('secM')"><i class="ti ti-shield-lock"></i> رموز الحماية</button>
+          <button class="dd-item" onclick="closeMore();clearAllEmployees()" style="color:#dc2626"><i class="ti ti-trash" style="color:#dc2626"></i> حذف كل الموظفين</button>
+          <button class="dd-item" onclick="closeSystem()" style="color:#dc2626;font-weight:700"><i class="ti ti-power" style="color:#dc2626"></i> إغلاق النظام بأمان</button>
+        </div>
+      </div>
+
+      <div id="moreNoResults" style="display:none;text-align:center;padding:16px;font-size:12px;color:#94a3b8">لا توجد نتائج مطابقة</div>
     </div>
   </div>
 </div>
+
+<style>
+.dd-tree-head{display:flex;align-items:center;gap:9px;width:100%;padding:10px 11px;border:none;background:transparent;border-radius:8px;font-family:inherit;font-size:12.5px;font-weight:800;color:#1e293b;cursor:pointer;text-align:right}
+.dd-tree-head:hover{background:#f3f6fb}
+.dd-tree-head .ti:nth-child(2){color:var(--gold);font-size:15px}
+.dd-tree-caret{font-size:13px;color:#94a3b8;transition:transform .15s;margin-inline-start:2px}
+.dd-tree-head.tree-open .dd-tree-caret{transform:rotate(-90deg)}
+.dd-tree-items{padding-inline-start:14px;border-inline-start:2px solid #eef1f8;margin:2px 0 4px 8px}
+</style>
 
 <!-- MAIN -->
 <div class="main" id="mc"><div class="hgrid"><div class="ccard" onclick="gv('0',null)" style="border-top:4px solid #5b7fa6">
@@ -2089,6 +2160,12 @@ function calc(e){
 function catT(i){let g=0,d=0,n=0,p=0,pc=0;(DB[i]||[]).forEach(e=>{const c=calc(e);g+=c.g;d+=c.d;n+=c.n;if(e.paid){p+=c.n;pc++;}});return{g,d,n,p,pc,cnt:(DB[i]||[]).length};}
 function allT(){let g=0,d=0,n=0,cnt=0,pc=0;for(let i=0;i<NCAT;i++){const t=catT(i);g+=t.g;d+=t.d;n+=t.n;cnt+=t.cnt;pc+=t.pc;}return{g,d,n,cnt,pc};}
 function allRows(){let r=[];for(let i=0;i<NCAT;i++)(DB[i]||[]).forEach(e=>r.push({...e,_c:i}));return r;}
+function buildApprovalEmployeeList(){
+  return allRows().map(function(e){
+    var c=calc(e);
+    return {name:e.name||'—', cat:(typeof CNAMES!=='undefined'&&CNAMES[e._c])?CNAMES[e._c]:'', gross:c.g, deductions:c.d, net:c.n};
+  });
+}
 function notify(m){const el=document.getElementById('notif');document.getElementById('nt').textContent=m;el.classList.add('on');setTimeout(()=>el.classList.remove('on'),3000);}
 function cm(id){document.getElementById(id).classList.remove('open');}
 function om(id){document.getElementById(id).classList.add('open');}
@@ -2660,27 +2737,62 @@ function bulkClearSelection(){
 
 // تغيير رموز الاعتماد (المهندس والرئيس)
 function openChangeApprovalPins(){
+ try{
   var html='<div style="padding:18px">';
   html+='<div style="background:#fef9ec;border:1px solid #f0c060;border-radius:10px;padding:12px;margin-bottom:16px;font-size:12px;color:#92722a"><i class="ti ti-shield-lock"></i> غيّر الرموز الافتراضية لرموز سرية يعرفها المهندس والرئيس فقط — لحماية الاعتماد.</div>';
   html+='<label style="display:block;font-size:12px;color:#475569;margin-bottom:6px">رمز المهندس أيمن (4 أرقام)</label>';
-  html+='<input type="text" inputmode="numeric" maxlength="6" id="newEngPin" placeholder="الرمز الحالي: '+ENG_PIN+'" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;direction:ltr;text-align:center;font-size:16px;font-weight:700;margin-bottom:14px">';
+  html+='<input type="text" inputmode="numeric" maxlength="6" id="newEngPin" placeholder="الرمز الحالي: '+getEngPin()+'" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;direction:ltr;text-align:center;font-size:16px;font-weight:700;margin-bottom:14px">';
   html+='<label style="display:block;font-size:12px;color:#475569;margin-bottom:6px">رمز الرئيس التنفيذي (4 أرقام)</label>';
   html+='<input type="text" inputmode="numeric" maxlength="6" id="newCeoPin" placeholder="الرمز الحالي: '+getCeoPin()+'" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;direction:ltr;text-align:center;font-size:16px;font-weight:700;margin-bottom:16px">';
   html+='<button onclick="saveApprovalPins()" style="width:100%;padding:12px;border-radius:9px;border:none;background:linear-gradient(135deg,#0d1b35,#1a2f5e);color:#fff;font-weight:800;font-size:14px;cursor:pointer"><i class="ti ti-device-floppy"></i> حفظ الرموز الجديدة</button>';
+  html+='<div style="border-top:1px solid #e2e8f0;margin:18px 0 14px"></div>';
+  var skipped=false; try{ skipped=isEngSkipped(); }catch(e2){}
+  html+='<div style="background:'+(skipped?'#fef2f2':'#f8fafc')+';border:1px solid '+(skipped?'#fecaca':'#e2e8f0')+';border-radius:10px;padding:14px">';
+  html+='<label style="display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer">';
+  html+='<span style="font-size:12.5px;font-weight:700;color:#0d1b35"><i class="ti ti-user-x" style="color:#dc2626"></i> تخطي اعتماد المهندس (الوظيفة شاغرة حالياً)</span>';
+  html+='<input type="checkbox" id="engSkipToggle" '+(skipped?'checked':'')+' onchange="toggleEngSkip(this.checked)" style="width:20px;height:20px;cursor:pointer">';
+  html+='</label>';
+  html+='<div style="font-size:10.5px;color:#94a3b8;margin-top:6px">عند التفعيل، المسيرات الجديدة تُرسل مباشرة لاعتماد الرئيس التنفيذي فقط بدون انتظار رمز المهندس.</div>';
   html+='</div>';
-  document.getElementById('changePinsBody').innerHTML=html;
-  document.getElementById('changePinsM').classList.add('open');
+  html+='</div>';
+  var body=document.getElementById('changePinsBody');
+  var modal=document.getElementById('changePinsM');
+  if(!body||!modal){ alert('تعذر فتح نافذة رموز الاعتماد — عنصر مفقود بالصفحة (changePinsBody/changePinsM). أعد تحميل الصفحة وحاول مجدداً.'); return; }
+  body.innerHTML=html;
+  modal.classList.add('open');
+  modal.style.display='flex';
+ }catch(err){
+  alert('خطأ أثناء فتح رموز الاعتماد: '+(err&&err.message?err.message:err));
+ }
+}
+function isEngSkipped(){ try{ return localStorage.getItem('inspectex_skip_eng')==='1'; }catch(e){ return false; } }
+function toggleEngSkip(on){
+  try{ localStorage.setItem('inspectex_skip_eng', on?'1':'0'); }catch(e){}
+  if(typeof cloudSaveMDB==='function'){try{cloudSaveMDB();}catch(e){}} else if(typeof cloudSaveDebounced==='function')cloudSaveDebounced();
+  notify(on?'⚠️ تم تفعيل تخطي اعتماد المهندس — المسيرات القادمة تُرسل مباشرة للرئيس':'✓ تم إلغاء تخطي اعتماد المهندس — الاعتماد رجع لمرحلتين');
+  openChangeApprovalPins();
 }
 function saveApprovalPins(){
-  var ne=document.getElementById('newEngPin').value.trim();
-  var nc=document.getElementById('newCeoPin').value.trim();
+ try{
+  var neEl=document.getElementById('newEngPin');
+  var ncEl=document.getElementById('newCeoPin');
+  var ne=neEl?neEl.value.trim():'';
+  var nc=ncEl?ncEl.value.trim():'';
   var changed=[];
-  if(ne && ne.length>=4){ ENG_PIN=ne; try{localStorage.setItem('inspectex_eng_pin',ne);}catch(e){} changed.push('المهندس'); }
-  if(nc && nc.length>=4){ try{localStorage.setItem('inspectex_ceo_pin',nc);}catch(e){} if(typeof CEO_PIN!=='undefined')CEO_PIN=nc; changed.push('الرئيس'); }
-  if(typeof cloudSaveMDB==='function'){try{cloudSaveMDB();}catch(e){}} else if(typeof cloudSaveDebounced==='function')cloudSaveDebounced();
-  document.getElementById('changePinsM').classList.remove('open');
-  if(changed.length) notify('✓ تم تغيير رمز: '+changed.join(' و '));
-  else notify('لم تُدخل رموزاً جديدة (4 أرقام على الأقل)');
+  if(ne && ne.length>=4){ setEngPin(ne); changed.push('المهندس ← '+ne); }
+  if(nc && nc.length>=4){ try{localStorage.setItem(CEO_PIN_KEY,nc);}catch(e){} changed.push('الرئيس ← '+nc); }
+  try{ if(typeof cloudSaveMDB==='function')cloudSaveMDB(); else if(typeof cloudSaveDebounced==='function')cloudSaveDebounced(); }catch(e3){}
+  var modal=document.getElementById('changePinsM');
+  if(modal){ modal.classList.remove('open'); modal.style.display='none'; }
+  if(changed.length){
+    alert('✓ تم الحفظ بنجاح:\n'+changed.join('\n'));
+    try{ notify('✓ تم تغيير: '+changed.join(' و ')); }catch(e4){}
+  } else {
+    alert('⚠️ لم يتم الحفظ — اكتب رمزاً جديداً (4 أرقام على الأقل) في إحدى الخانتين قبل الضغط على حفظ.\n\nملاحظة: النص الرمادي بالخانة (الرمز الحالي) هو مجرد تلميح، ولازم تكتب فوقه رمز فعلي جديد.');
+  }
+ }catch(err){
+  alert('حدث خطأ أثناء الحفظ: '+(err&&err.message?err.message:err));
+ }
 }
 
 function openRenameSheets(){
@@ -3174,12 +3286,15 @@ async function sendApprovalDirect(){
   if(!confirm('سيتم إرسال مسير شهر «'+mn+' '+yr+'» للاعتماد.\n\nتأكد أنك على الشهر الصحيح!\n\nمتابعة؟')) return;
   try{
     var _at=allT();
+    var skipEng2 = (typeof isEngSkipped==='function') && isEngSkipped();
     // ارفع مباشرة وتحقق من النجاح بإعادة القراءة من السحابة
     var payload = {
       month: mon, year: yr, status:'pending',
       approved_by:null, approved_at:null,
-      eng_status:'pending', eng_by:null, eng_at:null,
-      payroll_summary:{ total_employees:allRows().length, gross:_at.g, deductions:_at.d, net:_at.n, sent_at:new Date().toISOString() }
+      eng_status: skipEng2?'approved':'pending',
+      eng_by: skipEng2?'تم التخطي — الوظيفة شاغرة':null,
+      eng_at: skipEng2?new Date().toISOString():null,
+      payroll_summary:{ total_employees:allRows().length, gross:_at.g, deductions:_at.d, net:_at.n, sent_at:new Date().toISOString(), employees:buildApprovalEmployeeList() }
     };
     // تحقق إن كان موجوداً
     var chk = await fetch(SB_URL+'/rest/v1/approvals?month=eq.'+mon+'&year=eq.'+yr,{
@@ -3214,7 +3329,8 @@ function sendWABoth(){
         total_employees:allRows().length,
         gross:_at.g, deductions:_at.d, net:_at.n,
         month:mon, year:yr,
-        sent_at:new Date().toISOString()
+        sent_at:new Date().toISOString(),
+        employees:buildApprovalEmployeeList()
       });
       notify('☁️ تم رفع المسير للاعتماد — سيصل للمهندس والرئيس');
     }
@@ -3262,7 +3378,8 @@ function sendWA(){
         total_employees:allRows().length,
         gross:_at.g, deductions:_at.d, net:_at.n,
         month:mon, year:yr,
-        sent_at:new Date().toISOString()
+        sent_at:new Date().toISOString(),
+        employees:buildApprovalEmployeeList()
       });
       notify('☁️ تم رفع المسير للاعتماد — سيصل للمهندس والرئيس');
     }
@@ -3361,7 +3478,7 @@ function sendToFin(){
 function sheetKey(i){return mon+'-'+yr+'-'+i;}
 function _slot(i){const k=sheetKey(i);if(!sheetApr[k])sheetApr[k]={};const s=sheetApr[k];if(s.status==='approved'&&!s.eng){s.eng={by:s.by||engApprover.name,date:s.date||''};}return s;}
 function activeSheets(){return [0,1,2,3,4,5].filter(i=>(DB[i]||[]).length);}
-function isEngApproved(i){const s=sheetApr[sheetKey(i)];return !!(s&&(s.eng||s.status==='approved'));}
+function isEngApproved(i){if(typeof isEngSkipped==='function'&&isEngSkipped())return true;const s=sheetApr[sheetKey(i)];return !!(s&&(s.eng||s.status==='approved'));}
 function engInfo(i){const s=sheetApr[sheetKey(i)];return s?(s.eng||(s.status==='approved'?{by:s.by,date:s.date}:null)):null;}
 function isSheetApproved(i){return isEngApproved(i);}
 function pendingClr(){return (typeof CLR_DB!=='undefined'?CLR_DB:[]).filter(e=>e.status!=='approved');}
@@ -3408,7 +3525,8 @@ function setSubStatus(st){
       total_employees:allRows().length,
       gross:at2.g, deductions:at2.d, net:at2.n,
       month:mon, year:yr,
-      sent_at:new Date().toISOString()
+      sent_at:new Date().toISOString(),
+      employees:buildApprovalEmployeeList()
     }).then(function(ok){
       if(ok) notify('☁️ تم إرسال المسير للاعتماد السحابي');
       setTimeout(checkAndShowApprovalStatus,1500);
@@ -4007,7 +4125,7 @@ function sigBlockHTML(){
       '<div style="font-size:11px;font-weight:800;color:'+color+'">'+name+'</div>'+
       '<div style="font-size:9px;color:#94a3b8;margin-top:3px">'+sub+'</div></div>';
   }
-  return '<div style="margin-top:26px;padding:16px 22px;display:flex;justify-content:space-around;gap:12px;flex-wrap:wrap;page-break-inside:avoid">'+
+  return '<div class="ix-sigblock" style="margin-top:26px;padding:16px 22px;display:flex;justify-content:space-around;gap:12px;flex-wrap:wrap;page-break-inside:avoid">'+
     col('المحاسب','إعداد','#012060')+
     col('مدير العمليات','التوقيع','#012060')+
     col('رئيس الحسابات','مراجعة','#012060')+
@@ -4044,9 +4162,24 @@ function printIsolated(elementId, title){
     '.td{color:#1d4ed8!important;font-weight:700}.tc{color:#dc2626!important;font-weight:700}.tn{font-weight:700;color:#0d1b35!important}'+
     '.th-d{background:#1e40af!important;color:#fff!important}.th-c{background:#b91c1c!important;color:#fff!important}.th-n{background:#0d1b35!important;color:#fff!important}'+
     styles+
+    /* ── إصلاح: منع الصفحات الفارغة الزائدة والحدود المزدوجة الموروثة من قوالب الشاشة ── */
+    'html,body{height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important}'+
+    'body>*{max-height:none!important;overflow:visible!important}'+
+    '.ov,.modal,.dd-menu,.dd{all:unset!important;display:block!important}'+
+    '#'+elementId+'{max-width:100%!important;width:100%!important;max-height:none!important;overflow:visible!important;box-shadow:none!important;border-radius:0!important;margin:0!important;position:static!important;transform:none!important}'+
     '@page{margin:8mm;size:A4 portrait}'+
     '@media print{.no-print{display:none!important}body{padding:0}}'+
+    '.ix-watermark{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-25deg);opacity:.16;z-index:0;pointer-events:none;width:70%;max-width:420px}'+
+    '.ix-watermark img{width:100%;height:auto;display:block;filter:grayscale(1)}'+
+    '.ix-stamp{position:fixed;bottom:16mm;left:16mm;width:108px;height:108px;border:3px solid rgba(13,27,53,.55);border-radius:50%;display:flex;align-items:center;justify-content:center;transform:rotate(-14deg);opacity:.6;z-index:2;pointer-events:none}'+
+    '.ix-stamp-in{border:1.5px solid rgba(13,27,53,.55);border-radius:50%;width:90px;height:90px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}'+
+    '.ix-stamp-in b{font-size:15px;font-weight:900;color:rgba(13,27,53,.75);letter-spacing:1px;font-family:Arial,sans-serif}'+
+    '.ix-stamp-in span{font-size:6.5px;font-weight:700;color:rgba(13,27,53,.65);letter-spacing:2px;margin-top:2px}'+
+    'body{position:relative}'+
+    '#'+elementId+',.ix-sigblock{position:relative!important;z-index:1!important}'+
     '</style></head><body dir="rtl">'+
+    (logoSrc?'<div class="ix-watermark"><img src="'+logoSrc+'"></div>':'')+
+    '<div class="ix-stamp"><div class="ix-stamp-in"><b>INSPECTEX</b><span>CERTIFIED</span></div></div>'+
     el.outerHTML+
     sigBlockHTML()+
     '<\/body><\/html>');
@@ -4621,6 +4754,9 @@ let approvalState=null;
 try{const a=localStorage.getItem(APPROVAL_KEY);if(a)approvalState=JSON.parse(a);}catch(e){}
 
 function getCeoPin(){try{return localStorage.getItem(CEO_PIN_KEY)||'';}catch(e){return '';}}
+const ENG_PIN_KEY='inspectex_eng_pin';
+function getEngPin(){try{return localStorage.getItem(ENG_PIN_KEY)||'1111';}catch(e){return '1111';}}
+function setEngPin(v){try{localStorage.setItem(ENG_PIN_KEY,v);}catch(e){}}
 function saveCeoPin(){
   const np=document.getElementById('newCeoPin').value;
   const cp=document.getElementById('confCeoPin').value;
@@ -7200,14 +7336,15 @@ async function sbSendApproval(summary){
     });
     const existing = await chk.json();
 
+    const skipEng = (typeof isEngSkipped==='function') && isEngSkipped();
     const payload = {
       month: mon, year: yr,
       status: 'pending',
       approved_by: null,
       approved_at: null,
-      eng_status: 'pending',
-      eng_by: null,
-      eng_at: null,
+      eng_status: skipEng?'approved':'pending',
+      eng_by: skipEng?'تم التخطي — الوظيفة شاغرة':null,
+      eng_at: skipEng?new Date().toISOString():null,
       payroll_summary: summary
     };
 
@@ -7896,11 +8033,81 @@ _autoSaveTimer = setInterval(_autoSave, 60000);
 function toggleMore(ev){
   if(ev)ev.stopPropagation();
   const m=document.getElementById('moreMenu');
-  if(m)m.classList.toggle('open');
+  if(m){
+    m.classList.toggle('open');
+    if(m.classList.contains('open')){
+      const s=document.getElementById('moreSearch');
+      if(s){s.value='';filterMoreMenu('');setTimeout(function(){s.focus();},50);}
+    }
+  }
 }
 function closeMore(){
   const m=document.getElementById('moreMenu');
   if(m)m.classList.remove('open');
+}
+function toggleTreeGroup(headBtn){
+  var items=headBtn.nextElementSibling;
+  var isOpen=headBtn.classList.contains('tree-open');
+  headBtn.classList.toggle('tree-open', !isOpen);
+  items.style.display=isOpen?'none':'block';
+}
+function filterMoreMenu(q){
+  q=(q||'').trim().toLowerCase();
+  const groups=document.querySelectorAll('#moreMenu .dd-group');
+  let anyVisible=false;
+  groups.forEach(function(g){
+    const head=g.querySelector('.dd-tree-head');
+    const items=g.querySelector('.dd-tree-items');
+    let groupHasMatch=false;
+    items.querySelectorAll('.dd-item').forEach(function(it){
+      const match = !q || it.textContent.toLowerCase().indexOf(q)>=0;
+      it.style.display = match?'':'none';
+      if(match) groupHasMatch=true;
+    });
+    g.style.display = groupHasMatch?'':'none';
+    if(q){
+      // أثناء البحث: افتح المجموعات المطابقة تلقائياً
+      items.style.display = groupHasMatch?'block':'none';
+      head.classList.toggle('tree-open', groupHasMatch);
+    } else {
+      // بدون بحث: أرجعها لحالة مطوية (شكل شجرة نظيف)
+      items.style.display='none';
+      head.classList.remove('tree-open');
+    }
+    if(groupHasMatch) anyVisible=true;
+  });
+  const noRes=document.getElementById('moreNoResults');
+  if(noRes) noRes.style.display=anyVisible?'none':'block';
+}
+function showApprovalLinkModal(){
+  var existing=document.getElementById('approvalLinkModal');
+  if(existing) existing.remove();
+  var base = window.location.origin + window.location.pathname;
+  var link = base + '?approve&month=' + mon + '&year=' + yr;
+  var modal=document.createElement('div');
+  modal.id='approvalLinkModal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:20px';
+  modal.innerHTML='<div style="background:#fff;border-radius:16px;max-width:420px;width:100%;overflow:hidden;font-family:inherit">'
+    +'<div style="background:linear-gradient(135deg,#0d1b35,#1a2f5e);padding:16px 20px;color:#fff;font-size:15px;font-weight:800"><i class="ti ti-link"></i> رابط اعتماد مسير '+MNS[mon-1]+' '+yr+'</div>'
+    +'<div style="padding:20px">'
+    +'<div style="font-size:11.5px;color:#64748b;margin-bottom:10px">هذا الرابط دائم — احفظه أو أرسله متى احتجت، بدل ما تعتمد على نسخة واحدة قد تضيع.</div>'
+    +'<div style="display:flex;gap:6px;margin-bottom:14px">'
+    +'<input id="approvalLinkInput" type="text" readonly value="'+link+'" style="flex:1;padding:10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:11px;direction:ltr;text-align:left;font-family:monospace;background:#f8fafc">'
+    +'<button onclick="copyApprovalLink()" style="background:#0d1b35;color:#fff;border:none;border-radius:8px;padding:0 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap"><i class="ti ti-copy"></i> نسخ</button>'
+    +'</div>'
+    +'<button onclick="var m=document.getElementById(\'wa_num\');if(m)m.value=\'\';var mm=document.getElementById(\'wa_msg\');if(mm)mm.value=\'رابط اعتماد مسير '+MNS[mon-1]+' '+yr+':\\n'+link+'\';document.getElementById(\'approvalLinkModal\').remove();om(\'waM\')" style="width:100%;background:#f0fdf4;color:#16a34a;border:1.5px solid #bbf7d0;border-radius:9px;padding:11px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px;font-family:inherit"><i class="ti ti-brand-whatsapp"></i> إرسال عبر واتساب</button>'
+    +'<button onclick="document.getElementById(\'approvalLinkModal\').remove()" style="width:100%;background:#f1f5f9;color:#475569;border:none;border-radius:9px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">إغلاق</button>'
+    +'</div></div>';
+  modal.addEventListener('click',function(e){ if(e.target===modal) modal.remove(); });
+  document.body.appendChild(modal);
+}
+function copyApprovalLink(){
+  var inp=document.getElementById('approvalLinkInput');
+  if(!inp) return;
+  inp.select();
+  try{
+    navigator.clipboard.writeText(inp.value).then(function(){ notify('✓ تم نسخ الرابط'); }).catch(function(){ document.execCommand('copy'); notify('✓ تم نسخ الرابط'); });
+  }catch(e){ document.execCommand('copy'); notify('✓ تم نسخ الرابط'); }
 }
 document.addEventListener('click',function(e){
   const m=document.getElementById('moreMenu');
@@ -9208,25 +9415,32 @@ function printThankYou(cat,id){
     var today=new Date().toLocaleDateString('en-GB');
     var certNo='CERT-'+(new Date().getFullYear())+'-'+String(id).padStart(3,'0');
     var html=
-      '<div style="width:100%;min-height:190mm;box-sizing:border-box;padding:14mm;font-family:Cairo,\'Segoe UI\',Tahoma,sans-serif;position:relative;background:#fff">'+
-        '<div style="position:absolute;inset:8mm;border:3px solid #012060;border-radius:14px;pointer-events:none"></div>'+
-        '<div style="position:absolute;inset:11mm;border:1px solid #c8902a;border-radius:10px;pointer-events:none"></div>'+
-        '<div style="position:relative;text-align:center;padding:10mm 8mm">'+
-          (logo?'<img src="'+logo+'" style="height:70px;object-fit:contain;margin-bottom:6px">':'')+
-          '<div style="font-size:19px;font-weight:900;color:#012060">'+(comp.nameAr||'شركة معايير البناء الحديثة للفحص')+'</div>'+
-          '<div style="font-size:11px;color:#c8902a;letter-spacing:3px;font-weight:700;margin-top:2px">'+(comp.brand||'INSPECTEX')+'</div>'+
-          '<div style="width:120px;height:3px;background:linear-gradient(90deg,#c8902a,#012060,#c8902a);margin:16px auto;border-radius:2px"></div>'+
-          '<div style="font-size:40px;font-weight:900;color:#012060;margin:6px 0;letter-spacing:1px">شهادة شكر وتقدير</div>'+
-          '<div style="font-size:15px;color:#64748b;margin-bottom:22px">تتقدّم إدارة الشركة بخالص الشكر والتقدير إلى</div>'+
-          '<div style="font-size:30px;font-weight:900;color:#0d1b35;margin:6px 0">الأستاذ / '+e.name+'</div>'+
-          '<div style="display:inline-block;background:#012060;color:#fff;padding:5px 20px;border-radius:20px;font-size:14px;font-weight:700;margin-bottom:22px">'+(e.job||'')+'</div>'+
-          '<div style="font-size:16px;line-height:2.4;color:#1e293b;max-width:640px;margin:0 auto">'+
+      '<div style="width:100%;height:277mm;max-height:277mm;overflow:hidden;box-sizing:border-box;padding:10mm;font-family:Cairo,\'Segoe UI\',Tahoma,sans-serif;position:relative;background:#fff">'+
+        (logo?'<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-25deg);opacity:.15;z-index:0;pointer-events:none;width:60%;max-width:300px"><img src="'+logo+'" style="width:100%;height:auto;display:block;filter:grayscale(1)"></div>':'')+
+        '<div style="position:absolute;bottom:24mm;left:20mm;width:100px;height:100px;border:3px solid rgba(1,32,96,.55);border-radius:50%;display:flex;align-items:center;justify-content:center;transform:rotate(-14deg);opacity:.65;z-index:2;pointer-events:none">'+
+          '<div style="border:1.5px solid rgba(1,32,96,.55);border-radius:50%;width:82px;height:82px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center">'+
+            '<b style="font-size:13px;font-weight:900;color:rgba(1,32,96,.75);letter-spacing:1px;font-family:Arial,sans-serif">INSPECTEX</b>'+
+            '<span style="font-size:6px;font-weight:700;color:rgba(1,32,96,.65);letter-spacing:2px;margin-top:2px">CERTIFIED</span>'+
+          '</div>'+
+        '</div>'+
+        '<div style="position:absolute;inset:6mm;border:3px solid #012060;border-radius:14px;pointer-events:none"></div>'+
+        '<div style="position:absolute;inset:9mm;border:1px solid #c8902a;border-radius:10px;pointer-events:none"></div>'+
+        '<div style="position:relative;text-align:center;padding:14mm 8mm 6mm">'+
+          (logo?'<img src="'+logo+'" style="height:60px;object-fit:contain;margin-bottom:6px">':'')+
+          '<div style="font-size:17px;font-weight:900;color:#012060">'+(comp.nameAr||'شركة معايير البناء الحديثة للفحص')+'</div>'+
+          '<div style="font-size:10px;color:#c8902a;letter-spacing:3px;font-weight:700;margin-top:2px">'+(comp.brand||'INSPECTEX')+'</div>'+
+          '<div style="width:110px;height:3px;background:linear-gradient(90deg,#c8902a,#012060,#c8902a);margin:12px auto;border-radius:2px"></div>'+
+          '<div style="font-size:32px;font-weight:900;color:#012060;margin:4px 0;letter-spacing:1px">شهادة شكر وتقدير</div>'+
+          '<div style="font-size:13px;color:#64748b;margin-bottom:16px">تتقدّم إدارة الشركة بخالص الشكر والتقدير إلى</div>'+
+          '<div style="font-size:26px;font-weight:900;color:#0d1b35;margin:6px 0">الأستاذ / '+e.name+'</div>'+
+          '<div style="display:inline-block;background:#012060;color:#fff;padding:5px 20px;border-radius:20px;font-size:13px;font-weight:700;margin-bottom:16px">'+(e.job||'')+'</div>'+
+          '<div style="font-size:14px;line-height:2.1;color:#1e293b;max-width:150mm;margin:0 auto">'+
             'وذلك تقديراً لما بذله من <b style="color:#012060">جهودٍ متميّزة</b> وأداءٍ مهنيٍّ عالٍ، وتفانٍ والتزامٍ صادق في أداء مهامه، وإسهامه الفعّال في تحقيق أهداف الشركة ورفعة مستوى العمل.'+
           '</div>'+
-          '<div style="font-size:15px;color:#475569;margin-top:16px;line-height:2.2">فجزاه الله خيراً، ونسأل الله له دوام <b>التوفيق والنجاح</b>، وأن يكون هذا التقدير حافزاً لمزيدٍ من العطاء والتميّز.</div>'+
-          '<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:40px;padding:0 20px">'+
-            '<div style="text-align:center;font-size:12px;color:#64748b"><div style="font-weight:700;color:#0d1b35">التاريخ</div><div style="margin-top:4px">'+today+'</div><div style="font-size:9px;color:#94a3b8;margin-top:2px">'+certNo+'</div></div>'+
-            '<div style="text-align:center"><div style="border-top:1.5px solid #012060;padding-top:8px;width:200px;font-size:13px;font-weight:800;color:#012060">المدير العام / الرئيس التنفيذي</div><div style="font-size:10px;color:#94a3b8;margin-top:4px">التوقيع والختم</div></div>'+
+          '<div style="font-size:13px;color:#475569;margin-top:12px;line-height:1.9">فجزاه الله خيراً، ونسأل الله له دوام <b>التوفيق والنجاح</b>، وأن يكون هذا التقدير حافزاً لمزيدٍ من العطاء والتميّز.</div>'+
+          '<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:26px;padding:0 14mm">'+
+            '<div style="text-align:center;font-size:11px;color:#64748b"><div style="font-weight:700;color:#0d1b35">التاريخ</div><div style="margin-top:4px">'+today+'</div><div style="font-size:9px;color:#94a3b8;margin-top:2px">'+certNo+'</div></div>'+
+            '<div style="text-align:center"><div style="border-top:1.5px solid #012060;padding-top:6px;width:170px;font-size:12px;font-weight:800;color:#012060">المدير العام / الرئيس التنفيذي</div><div style="font-size:9px;color:#94a3b8;margin-top:4px">التوقيع والختم</div></div>'+
           '</div>'+
         '</div>'+
       '</div>';
@@ -9234,7 +9448,7 @@ function printThankYou(cat,id){
     if(!w){ if(typeof notify==='function')notify('السماح بالنوافذ المنبثقة مطلوب للطباعة'); return; }
     w.document.write('<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>شهادة شكر — '+e.name+'</title>'+
       '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap">'+
-      '<style>*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;margin:0;box-sizing:border-box}@page{size:A4 landscape;margin:0}body{background:#fff}</style></head><body>'+html+
+      '<style>*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;margin:0;box-sizing:border-box}html,body{height:auto!important;overflow:visible}@page{size:A4 portrait;margin:10mm}body{background:#fff}</style></head><body>'+html+
       '<scr'+'ipt>window.onload=function(){setTimeout(function(){window.print();},400);}<\/scr'+'ipt></body></html>');
     w.document.close();
   }catch(err){ if(typeof notify==='function')notify('تعذّر إنشاء الشهادة'); }
