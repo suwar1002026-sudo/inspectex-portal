@@ -468,7 +468,57 @@ script[type="application/json"]{display:none!important}
 </style>
 </head>
 <body>
-<!-- ═══ ANIMATED SPLASH SCREEN ═══ -->
+<!-- ═══ LOGIN GATE (كلمة مرور واحدة للنظام) — لا تظهر في رابط الاعتماد الخارجي ═══ -->
+<div id="loginGate" style="display:none;position:fixed;inset:0;z-index:99999999;background:linear-gradient(135deg,#0d1b35 0%,#1a2f5e 55%,#1e3a8a 100%);align-items:center;justify-content:center;direction:rtl;font-family:'Segoe UI',Tahoma,Arial,sans-serif">
+  <div style="background:#fff;border-radius:18px;max-width:340px;width:90%;padding:32px 26px;box-shadow:0 20px 60px rgba(0,0,0,.4);text-align:center">
+    <div style="width:56px;height:56px;border-radius:14px;background:linear-gradient(135deg,#c8902a,#f0c060);display:flex;align-items:center;justify-content:center;margin:0 auto 14px"><i class="ti ti-lock" style="font-size:26px;color:#fff"></i></div>
+    <div style="font-size:16px;font-weight:800;color:#0d1b35;margin-bottom:4px">نظام مسيرات الرواتب</div>
+    <div style="font-size:12px;color:#94a3b8;margin-bottom:20px">أدخل كلمة المرور للدخول</div>
+    <input type="password" id="loginGatePw" placeholder="••••••" style="width:100%;padding:12px;border:1.5px solid #e2e8f0;border-radius:10px;text-align:center;letter-spacing:4px;font-size:16px;margin-bottom:12px;font-family:inherit" onkeypress="if(event.key==='Enter')checkLoginGate()">
+    <div id="loginGateErr" style="display:none;color:#dc2626;font-size:11.5px;margin-bottom:10px">❌ كلمة المرور غير صحيحة</div>
+    <button onclick="checkLoginGate()" style="width:100%;padding:12px;border:none;border-radius:10px;background:linear-gradient(135deg,#0d1b35,#1a2f5e);color:#fff;font-weight:800;font-size:14px;cursor:pointer;font-family:inherit">دخول</button>
+  </div>
+</div>
+<script>
+(function(){
+  var isApproveMode = (window.location.hash==='#approve'||window.location.search.indexOf('approve')>=0);
+  if(isApproveMode) return; // رابط الاعتماد الخارجي لا يحتاج كلمة المرور العامة
+  var authed=false;
+  try{ authed = sessionStorage.getItem('inspectex_authed')==='1'; }catch(e){}
+  if(authed) return;
+  var gate=document.getElementById('loginGate');
+  if(gate) gate.style.display='flex';
+  var sp=document.getElementById('inspectexSplash');
+  if(sp) sp.style.display='none'; // لا تعرض السبلاش خلف بوابة الدخول
+  setTimeout(function(){ var pw=document.getElementById('loginGatePw'); if(pw) pw.focus(); }, 300);
+})();
+function getLoginGatePw(){ try{ return localStorage.getItem('inspectex_login_pw')||'1234'; }catch(e){ return '1234'; } }
+function checkLoginGate(){
+  var val=(document.getElementById('loginGatePw')||{}).value||'';
+  if(val===getLoginGatePw()){
+    try{ sessionStorage.setItem('inspectex_authed','1'); }catch(e){}
+    var gate=document.getElementById('loginGate');
+    if(gate) gate.style.display='none';
+    var sp=document.getElementById('inspectexSplash');
+    if(sp){ sp.style.display='flex'; sp.style.opacity='1'; setTimeout(function(){sp.style.opacity='0';setTimeout(function(){sp.style.display='none';},800);},900); }
+  } else {
+    var err=document.getElementById('loginGateErr');
+    if(err) err.style.display='block';
+    var pw=document.getElementById('loginGatePw');
+    if(pw){ pw.value=''; pw.focus(); }
+  }
+}
+function changeLoginGatePw(){
+  var cur=prompt('أدخل كلمة المرور الحالية للتأكيد:');
+  if(cur===null) return;
+  if(cur!==getLoginGatePw()){ alert('❌ كلمة المرور الحالية غير صحيحة'); return; }
+  var np=prompt('أدخل كلمة المرور الجديدة (لا تقل عن 4 خانات):');
+  if(!np || np.length<4){ if(np!==null) alert('كلمة المرور قصيرة جداً'); return; }
+  try{ localStorage.setItem('inspectex_login_pw', np); }catch(e){}
+  alert('✓ تم تغيير كلمة مرور الدخول بنجاح');
+}
+</script>
+
 <div id="inspectexSplash" style="position: fixed; inset: 0px; z-index: 9999999; background: linear-gradient(135deg, rgb(13, 27, 53) 0%, rgb(26, 47, 94) 55%, rgb(30, 58, 138) 100%); display: none; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.8s; opacity: 0;">
   <div class="splash-logo-wrap">
     <svg width="140" height="140" viewBox="0 0 140 140" class="splash-svg">
@@ -924,6 +974,7 @@ setInterval(function(){
       <div class="dd-group" data-group="1">
         <button class="dd-tree-head" onclick="toggleTreeGroup(this)"><i class="ti ti-chevron-left dd-tree-caret"></i><i class="ti ti-alert-triangle"></i><span>الحماية والخطر</span></button>
         <div class="dd-tree-items" style="display:none">
+          <button class="dd-item" onclick="closeMore();changeLoginGatePw()"><i class="ti ti-key"></i> كلمة مرور دخول النظام</button>
           <button class="dd-item" onclick="closeMore();om('secM')"><i class="ti ti-shield-lock"></i> رموز الحماية</button>
           <button class="dd-item" onclick="closeMore();clearAllEmployees()" style="color:#dc2626"><i class="ti ti-trash" style="color:#dc2626"></i> حذف كل الموظفين</button>
           <button class="dd-item" onclick="closeSystem()" style="color:#dc2626;font-weight:700"><i class="ti ti-power" style="color:#dc2626"></i> إغلاق النظام بأمان</button>
