@@ -19,9 +19,9 @@
   --navy2:#334155;
   --navy3:#475569;
   /* ── Sky blue accent (replaces gold) ── */
-  --gold:#0369a1;
+  --gold:#c8902a;
   --gold-light:#e0f2fe;
-  --gold-bright:#0284c7;
+  --gold-bright:#f0c060;
   --gold-glow:#0ea5e910;
   /* ── Teal (replaces green) ── */
   --green:#0d9488;
@@ -2619,8 +2619,14 @@ function renderVList(){
 function _renderVListInner(list){
   var vouchers = list||window.vouchers;
   var filtered=vouchers.filter(function(v){return vFilter==='all'||v.type===vFilter;});
+  // الأوامر المكتملة (معتمدة ومصروفة) تنتقل للأرشيف وتترك مكانها للمتبقي في القائمة الرئيسية
+  var completed = filtered.filter(function(v){ return v.ceoStatus==='approved' && v.paid; });
+  filtered = filtered.filter(function(v){ return !(v.ceoStatus==='approved' && v.paid); });
+  var archiveBanner = completed.length
+    ? '<div onclick="showPage(\'archive\')" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:9px 12px;margin:8px 10px;font-size:11px;color:#166534"><span><i class="ti ti-archive"></i> '+completed.length+' أمر مكتمل (معتمد ومصروف) — انتقل للأرشيف</span><i class="ti ti-arrow-left"></i></div>'
+    : '';
   if(!filtered.length){
-    document.getElementById('voucher-list').innerHTML='<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">لا توجد أوامر في هذا التصنيف</div>';
+    document.getElementById('voucher-list').innerHTML=archiveBanner+'<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">لا توجد أوامر متبقية في هذا التصنيف'+(completed.length?' — كلها مكتملة ✅':'')+'</div>';
     return;
   }
   var html='';
@@ -2652,7 +2658,7 @@ function _renderVListInner(list){
       +'</div>'
     +'</div>';
   });
-  document.getElementById('voucher-list').innerHTML=html;
+  document.getElementById('voucher-list').innerHTML=archiveBanner+html;
 }
 function selectVoucher(id){
   var numId = parseInt(id);
@@ -2906,18 +2912,38 @@ function sendToCEOPortal(vid){
   // Just send - don't open portal (portal is for CEO only)
 }
 // ── resendVoucherToCEO — إعادة ترحيل سند مرفوض بعد تعديله ──
-function resendVoucherToCEO(vid){
+async function resendVoucherToCEO(vid){
   var id=parseInt(vid)||vid;
   var v=vouchers.find(function(x){return x.id===id||x.id===vid;});
   if(!v){showToast('الأمر غير موجود','warn');return;}
   if(v.ceoStatus!=='rejected'){ sendToCEOPortal(vid); return; }
+  var btn=document.querySelector('[onclick*="resendVoucherToCEO('+id+')"]');
+  if(btn){ btn.disabled=true; btn.style.opacity='.6'; btn.innerHTML='<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> جارٍ الترحيل...'; }
   v.ceoStatus='sent';
   delete v.rejectReason;
   delete v.ceoRejectedAt;
   delete v.ceoNote;
   v.approvals={}; // إعادة المسار من البداية بعد الرفض
   saveData();
-  sbPushStatus(v.id,'sent',{approvals:{}, rejectReason:null, ceoNote:null});
+  try{
+    var ok = await sbPushStatus(v.id,'sent',{approvals:{}, rejectReason:null, ceoNote:null});
+    if(ok===false){
+      // فشل الرفع للسحابة — رجّع الحالة محلياً حتى لا يظهر السند "مُرحّل" وهمياً
+      v.ceoStatus='rejected';
+      saveData();
+      renderVList();
+      selectVoucher(v.id);
+      showToast('❌ فشل إعادة الترحيل — تحقق من الاتصال وحاول مجدداً','warn');
+      return;
+    }
+  }catch(err){
+    v.ceoStatus='rejected';
+    saveData();
+    renderVList();
+    selectVoucher(v.id);
+    alert('خطأ أثناء إعادة الترحيل: '+(err&&err.message?err.message:err));
+    return;
+  }
   refreshArchiveIfActive();
   renderVList();
   selectVoucher(v.id);
@@ -3000,6 +3026,8 @@ function printAllVouchers(){
     +'<button onclick="doPrintAll(\'approved\')" style="width:100%;background:#f0fdfa;color:#0f766e;border:1.5px solid #99f6e4;border-radius:9px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:8px;font-family:Cairo,sans-serif">✅ المعتمدة فقط ('+vouchers.filter(function(v){return v.ceoStatus==="approved";}).length+')</button>'
     +'<button onclick="doPrintAll(\'paid\')" style="width:100%;background:#fef9e7;color:#b45309;border:1.5px solid #fde68a;border-radius:9px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:8px;font-family:Cairo,sans-serif">💰 المصروفة فقط ('+vouchers.filter(function(v){return v.paid;}).length+')</button>'
     +'<button onclick="doPrintAll(\'approved_unpaid\')" style="width:100%;background:#eff6ff;color:#1d4ed8;border:1.5px solid #bfdbfe;border-radius:9px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:8px;font-family:Cairo,sans-serif">🕓 المعتمدة وغير المصروفة ('+vouchers.filter(function(v){return v.ceoStatus==="approved" && !v.paid;}).length+')</button>'
+    +'<button onclick="doPrintAll(\'unpaid\')" style="width:100%;background:#fff7ed;color:#c2410c;border:1.5px solid #fed7aa;border-radius:9px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:8px;font-family:Cairo,sans-serif">📤 غير المصروفة (بجميع حالاتها) ('+vouchers.filter(function(v){return !v.paid;}).length+')</button>'
+    +'<button onclick="doPrintAll(\'not_approved\')" style="width:100%;background:#fdf2f8;color:#a21caf;border:1.5px solid #f5d0fe;border-radius:9px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:8px;font-family:Cairo,sans-serif">⏳ غير المعتمدة (بجميع حالاتها) ('+vouchers.filter(function(v){return v.ceoStatus!=="approved";}).length+')</button>'
     +'<button onclick="showVoucherPicker()" style="width:100%;background:#f5f3ff;color:#6d28d9;border:1.5px solid #c4b5fd;border-radius:9px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:8px;font-family:Cairo,sans-serif">☑️ تحديد أوامر معينة</button>'
     +'<button onclick="document.getElementById(\'print-all-modal\').remove()" style="width:100%;background:#f1f5f9;color:#475569;border:none;border-radius:9px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;margin-top:6px;font-family:Cairo,sans-serif">إلغاء</button>'
     +'</div></div>';
@@ -3060,13 +3088,15 @@ function doPrintAll(filter, selectedIds){
   if(filter==='approved') list=list.filter(function(v){return v.ceoStatus==='approved';});
   else if(filter==='paid') list=list.filter(function(v){return v.paid;});
   else if(filter==='approved_unpaid') list=list.filter(function(v){return v.ceoStatus==='approved' && !v.paid;});
+  else if(filter==='unpaid') list=list.filter(function(v){return !v.paid;});
+  else if(filter==='not_approved') list=list.filter(function(v){return v.ceoStatus!=='approved';});
   else if(filter==='selected') list=list.filter(function(v){return selectedIds && selectedIds[v.id];});
   if(!list.length){ showToast('لا توجد أوامر بهذا التصنيف','warn'); return; }
   // ترتيب حسب رقم السند
   list.sort(function(a,b){ return (a.vNo||'').localeCompare(b.vNo||''); });
 
   var totalSum = list.reduce(function(s,v){ return s+(v.amount||0); }, 0);
-  var title = filter==='approved'?'الأوامر المعتمدة':filter==='paid'?'الأوامر المصروفة':filter==='approved_unpaid'?'الأوامر المعتمدة وغير المصروفة':filter==='selected'?'الأوامر المحدّدة':'جميع الأوامر';
+  var title = filter==='approved'?'الأوامر المعتمدة':filter==='paid'?'الأوامر المصروفة':filter==='approved_unpaid'?'الأوامر المعتمدة وغير المصروفة':filter==='unpaid'?'الأوامر غير المصروفة':filter==='not_approved'?'الأوامر غير المعتمدة':filter==='selected'?'الأوامر المحدّدة':'جميع الأوامر';
   var today = new Date().toLocaleDateString('ar-SA-u-nu-latn',{year:'numeric',month:'long',day:'numeric'});
 
   var rows = list.map(function(v,idx){
@@ -3436,8 +3466,14 @@ function renderMList(){
     if(mFilter==='approved')  return m.ceoStatus==='approved';
     return true;
   });
+  // الأوامر المكتملة (معتمدة ومصروفة بالكامل) تنتقل للأرشيف وتترك مكانها للمتبقي
+  var completedArchived = filtered.filter(function(m){ return m.ceoStatus==='approved' && m.status==='completed'; });
+  filtered = filtered.filter(function(m){ return !(m.ceoStatus==='approved' && m.status==='completed'); });
+  var archiveBanner = completedArchived.length
+    ? '<div onclick="showPage(\'archive\')" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:9px 12px;margin:8px 10px;font-size:11px;color:#166534"><span><i class="ti ti-archive"></i> '+completedArchived.length+' أمر مكتمل (معتمد ومصروف بالكامل) — انتقل للأرشيف</span><i class="ti ti-arrow-left"></i></div>'
+    : '';
   if(!filtered.length){
-    document.getElementById('multi-list').innerHTML='<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">لا توجد أوامر</div>';
+    document.getElementById('multi-list').innerHTML=archiveBanner+'<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">لا توجد أوامر متبقية'+(completedArchived.length?' — كلها مكتملة ✅':'')+'</div>';
     return;
   }
   var html='';
@@ -3468,7 +3504,7 @@ function renderMList(){
       +'</div>'
     +'</div>';
   });
-  document.getElementById('multi-list').innerHTML=html;
+  document.getElementById('multi-list').innerHTML=archiveBanner+html;
 }
 
 function selectMulti(id){
@@ -3888,6 +3924,8 @@ function printAllMultiOrders(){
     +'<button onclick="doPrintAllMulti(\'approved\')" style="width:100%;background:#f0fdfa;color:#0f766e;border:1.5px solid #99f6e4;border-radius:9px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:8px;font-family:Cairo,sans-serif">✅ المعتمدة فقط ('+multiPayments.filter(function(m){return m.ceoStatus==="approved";}).length+')</button>'
     +'<button onclick="doPrintAllMulti(\'completed\')" style="width:100%;background:#fef9e7;color:#b45309;border:1.5px solid #fde68a;border-radius:9px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:8px;font-family:Cairo,sans-serif">💰 المكتملة فقط ('+multiPayments.filter(function(m){return m.status==="completed";}).length+')</button>'
     +'<button onclick="doPrintAllMulti(\'approved_incomplete\')" style="width:100%;background:#eff6ff;color:#1d4ed8;border:1.5px solid #bfdbfe;border-radius:9px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:8px;font-family:Cairo,sans-serif">🕓 المعتمدة وغير المكتملة ('+multiPayments.filter(function(m){return m.ceoStatus==="approved" && m.status!=="completed";}).length+')</button>'
+    +'<button onclick="doPrintAllMulti(\'incomplete\')" style="width:100%;background:#fff7ed;color:#c2410c;border:1.5px solid #fed7aa;border-radius:9px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:8px;font-family:Cairo,sans-serif">📤 غير المكتملة (بجميع حالاتها) ('+multiPayments.filter(function(m){return m.status!=="completed";}).length+')</button>'
+    +'<button onclick="doPrintAllMulti(\'not_approved\')" style="width:100%;background:#fdf2f8;color:#a21caf;border:1.5px solid #f5d0fe;border-radius:9px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:8px;font-family:Cairo,sans-serif">⏳ غير المعتمدة (بجميع حالاتها) ('+multiPayments.filter(function(m){return m.ceoStatus!=="approved";}).length+')</button>'
     +'<button onclick="showMultiPicker()" style="width:100%;background:#f5f3ff;color:#6d28d9;border:1.5px solid #c4b5fd;border-radius:9px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:8px;font-family:Cairo,sans-serif">☑️ تحديد أوامر معينة</button>'
     +'<button onclick="document.getElementById(\'print-all-multi-modal\').remove()" style="width:100%;background:#f1f5f9;color:#475569;border:none;border-radius:9px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;margin-top:6px;font-family:Cairo,sans-serif">إلغاء</button>'
     +'</div></div>';
@@ -3948,12 +3986,14 @@ function doPrintAllMulti(filter, selectedIds){
   if(filter==='approved') list=list.filter(function(m){return m.ceoStatus==='approved';});
   else if(filter==='completed') list=list.filter(function(m){return m.status==='completed';});
   else if(filter==='approved_incomplete') list=list.filter(function(m){return m.ceoStatus==='approved' && m.status!=='completed';});
+  else if(filter==='incomplete') list=list.filter(function(m){return m.status!=='completed';});
+  else if(filter==='not_approved') list=list.filter(function(m){return m.ceoStatus!=='approved';});
   else if(filter==='selected') list=list.filter(function(m){return selectedIds && selectedIds[m.id];});
   if(!list.length){ showToast('لا توجد أوامر بهذا التصنيف','warn'); return; }
   list.sort(function(a,b){ return (a.vNo||'').localeCompare(b.vNo||''); });
 
   var totalSum = list.reduce(function(s,m){ return s+(m.total||0); }, 0);
-  var title = filter==='approved'?'الأوامر المعتمدة':filter==='completed'?'الأوامر المكتملة':filter==='approved_incomplete'?'الأوامر المعتمدة وغير المكتملة':filter==='selected'?'الأوامر المحدّدة':'جميع أوامر الصرف المتعددة';
+  var title = filter==='approved'?'الأوامر المعتمدة':filter==='completed'?'الأوامر المكتملة':filter==='approved_incomplete'?'الأوامر المعتمدة وغير المكتملة':filter==='incomplete'?'الأوامر غير المكتملة':filter==='not_approved'?'الأوامر غير المعتمدة':filter==='selected'?'الأوامر المحدّدة':'جميع أوامر الصرف المتعددة';
   var today = new Date().toLocaleDateString('ar-SA-u-nu-latn',{year:'numeric',month:'long',day:'numeric'});
 
   var rows = list.map(function(m,idx){
@@ -6284,7 +6324,48 @@ function renderArchive(){
   html+=archiveSection('❌ أوامر مرفوضة',rejected,'#dc2626','#fef2f2','#fecaca');
 
   html+='</div>';
+
+  // ── أوامر الصرف المتعددة ──
+  var mApproved = multiPayments.filter(function(m){return m.ceoStatus==='approved';});
+  var mCompleted = multiPayments.filter(function(m){return m.status==='completed';});
+  var mRejected = multiPayments.filter(function(m){return m.ceoStatus==='rejected';});
+  function summ(arr){return arr.reduce(function(s,m){return s+(m.total||0);},0);}
+  html+='<div style="margin:26px 0 14px;display:flex;align-items:center;gap:10px"><span style="font-size:15px;font-weight:900;color:var(--navy)">📋 أرشيف أوامر الصرف المتعددة</span><div style="flex:1;height:2px;background:#eef2f7"></div></div>';
+  html+='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px">'
+    +archiveStat('✅','معتمدة',mApproved.length,summ(mApproved),'#0f766e','#f0fdfa')
+    +archiveStat('💰','مكتملة (مصروفة بالكامل)',mCompleted.length,summ(mCompleted),'#1565c0','#eff6ff')
+    +archiveStat('❌','مرفوضة',mRejected.length,summ(mRejected),'#dc2626','#fef2f2')
+    +'</div>';
+  html+=archiveMultiSection('✅ أوامر متعددة معتمدة',mApproved,'#0f766e','#f0fdfa','#99f6e4');
+  html+=archiveMultiSection('💰 أوامر متعددة مكتملة',mCompleted,'#1565c0','#eff6ff','#bfdbfe');
+  html+=archiveMultiSection('❌ أوامر متعددة مرفوضة',mRejected,'#dc2626','#fef2f2','#fecaca');
+
   document.getElementById('archive-content').innerHTML=html;
+}
+
+function archiveMultiSection(title,arr,color,bg,border){
+  var html='<div style="margin-bottom:20px">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding-bottom:8px;border-bottom:2px solid '+border+'">'
+    +'<span style="font-size:15px;font-weight:800;color:'+color+'">'+title+'</span>'
+    +'<span style="background:'+bg+';color:'+color+';border:1px solid '+border+';border-radius:20px;padding:3px 12px;font-size:12px;font-weight:700">'+arr.length+' أمر</span>'
+    +'</div>';
+  if(!arr.length){
+    html+='<div style="text-align:center;padding:24px;color:#cbd5e1;font-size:13px">لا توجد أوامر</div>';
+  } else {
+    var sorted=arr.slice().sort(function(a,b){return new Date(b.createdAt||0)-new Date(a.createdAt||0);});
+    html+='<div style="display:flex;flex-direction:column;gap:8px">';
+    sorted.forEach(function(m){
+      var tl=typeLabels[m.type]||{ar:m.type,icon:''};
+      var pct=Math.round((m.paid/m.total)*100)||0;
+      html+='<div onclick="showPage(\'multi\');selectMulti('+m.id+')" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px;background:#fff;border:1px solid '+border+';border-radius:9px;padding:10px 14px">'
+        +'<div style="display:flex;align-items:center;gap:10px;min-width:0"><span style="font-size:16px">'+tl.icon+'</span><div style="min-width:0"><div style="font-size:12.5px;font-weight:700;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+m.ben+'</div><div style="font-size:10.5px;color:#94a3b8">'+(m.vNo||'MP-'+m.id)+' · '+pct+'% مسدد</div></div></div>'
+        +'<span style="font-size:12px;font-weight:800;color:'+color+';white-space:nowrap">'+(m.total||0).toLocaleString()+' ر.س</span>'
+        +'</div>';
+    });
+    html+='</div>';
+  }
+  html+='</div>';
+  return html;
 }
 
 function archiveStat(icon,label,count,total,color,bg){
@@ -6478,18 +6559,18 @@ async function sbLoadMerge(){
     var d=JSON.parse(rows[0].data);
     if(!d||!d.vouchers||!d.vouchers.length) return;
     var changed=false;
-    // Status priority - higher number = more final, never downgrade
-    var rank={'':0,'pending':1,'sent':2,'rejected':3,'approved':4};
     d.vouchers.forEach(function(cv){
       var exists=vouchers.find(function(v){return v.id===cv.id;});
       if(!exists){ vouchers.push(cv); changed=true; }
       else {
-        var localRank=rank[exists.ceoStatus||'']||0;
-        var cloudRank=rank[cv.ceoStatus||'']||0;
-        // Only update if cloud status is MORE advanced (higher rank)
-        if(cv.ceoStatus && cloudRank>localRank){
+        // السحابة دائماً هي المرجع الرسمي لحالة الاعتماد (بعد أي عملية sbPushStatus ناجحة
+        // تكون السحابة محدّثة فوراً). نتجاهل أي تسلسل أولوية ثابت لأنه كان يمنع "إعادة
+        // الترحيل بعد الرفض" من الظهور (كان يعتبر "مرفوض" أعلى رتبة من "مُرسَل" فيمنع التحديث).
+        if(cv.ceoStatus && cv.ceoStatus!==exists.ceoStatus){
           exists.ceoStatus=cv.ceoStatus;
-          if(cv.rejectReason) exists.rejectReason=cv.rejectReason;
+          exists.rejectReason=cv.rejectReason||null;
+          exists.ceoNote=cv.ceoNote||null;
+          if(cv.approvals) exists.approvals=cv.approvals;
           changed=true;
         }
         // دمج سلسلة الاعتماد (approvals) - خذ الأكثر اكتمالاً
