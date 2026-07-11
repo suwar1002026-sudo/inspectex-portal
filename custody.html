@@ -1056,6 +1056,19 @@ textarea.inp{height:70px;padding:10px 12px;resize:vertical;}
 </div>
 
 <script>
+// ⚡ حماية فورية: لو الرابط فيه ?approve= أخفِ شاشة تسجيل الدخول فورًا
+// (قبل أي كود ثاني ممكن يتعطل ويوقف تنفيذ checkApprovalMode لاحقًا)
+(function(){
+  try{
+    var p=new URLSearchParams(window.location.search);
+    if(p.get('approve')){
+      var lp=document.getElementById('loginPage');
+      if(lp) lp.style.display='none';
+      // محاولة مبكرة لعرض صفحة الاعتماد فورًا (checkApprovalMode لا تعتمد على DB)
+      if(typeof checkApprovalMode==='function'){ try{ checkApprovalMode(); }catch(e2){} }
+    }
+  }catch(e){}
+})();
 /* ══════════════════════════════════════
    DEFAULT CATEGORIES DATA
 ══════════════════════════════════════ */
