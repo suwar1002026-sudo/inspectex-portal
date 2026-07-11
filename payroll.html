@@ -655,16 +655,17 @@ const fmt = n => Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,ma
 const params = new URLSearchParams(window.location.search);
 let targetMonth = params.get('month') ? +params.get('month') : new Date().getMonth()+1;
 let targetYear  = params.get('year')  ? +params.get('year')  : new Date().getFullYear();
+let targetScope = params.get('scope') || 'all';
 
 window.loadApproval = async function(){
   try{
-    // إذا حُدّد شهر في الرابط، اجلبه. وإلا اجلب آخر مسير مُرسَل (أي شهر)
+    // إذا حُدّد شهر في الرابط، اجلبه بنفس النطاق. وإلا اجلب آخر مسير مُرسَل لنفس النطاق
     var hasParam = params.get('month');
     var url;
     if(hasParam){
-      url = SB_URL+'/rest/v1/approvals?month=eq.'+targetMonth+'&year=eq.'+targetYear+'&select=*&limit=1';
+      url = SB_URL+'/rest/v1/approvals?month=eq.'+targetMonth+'&year=eq.'+targetYear+'&scope=eq.'+encodeURIComponent(targetScope)+'&select=*&limit=1';
     } else {
-      url = SB_URL+'/rest/v1/approvals?select=*&order=year.desc,month.desc&limit=1';
+      url = SB_URL+'/rest/v1/approvals?scope=eq.'+encodeURIComponent(targetScope)+'&select=*&order=year.desc,month.desc&limit=1';
     }
     const res = await fetch(url,{
       headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}
@@ -680,12 +681,13 @@ window.loadApproval = async function(){
 window.renderContent = function(approval){
   const el = document.getElementById('content');
   const mn = MNS[targetMonth-1];
+  const scopeTitle = (approval && approval.payroll_summary && approval.payroll_summary.scope_label) ? approval.payroll_summary.scope_label : '';
 
   if(!approval){
     el.innerHTML = `
       <div style="text-align:center;padding:20px;color:#64748b">
         <i class="ti ti-clock" style="font-size:48px;color:#e2e8f0;display:block;margin-bottom:12px"></i>
-        <div style="font-size:16px;font-weight:700;margin-bottom:6px">لم يتم إرسال مسير ${mn} ${targetYear} بعد</div>
+        <div style="font-size:16px;font-weight:700;margin-bottom:6px">لم يتم إرسال ${scopeTitle||'مسير'} ${mn} ${targetYear} بعد</div>
         <div style="font-size:12px">انتظر حتى يرسل مسؤول الرواتب المسير للاعتماد</div>
       </div>`;
     return;
@@ -697,7 +699,8 @@ window.renderContent = function(approval){
   el.innerHTML = `
     <div style="text-align:center;margin-bottom:16px">
       <span class="tag ${isApproved?'approved-tag':'pending'}">${isApproved?'✅ معتمد':'⏳ بانتظار الاعتماد'}</span>
-      <div style="font-size:16px;font-weight:800;color:#0d1b35;margin-top:6px">مسير ${mn} ${targetYear}</div>
+      <div style="font-size:16px;font-weight:800;color:#0d1b35;margin-top:6px">${scopeTitle?scopeTitle+' — ':''}مسير ${mn} ${targetYear}</div>
+      ${scopeTitle && scopeTitle!=='المسير الكامل' ? '<div style="font-size:10.5px;color:#94a3b8;margin-top:2px"><i class="ti ti-filter"></i> اعتماد جزئي — نطاق محدد وليس كل المسير</div>' : ''}
     </div>
 
     <div class="summary">
@@ -804,7 +807,7 @@ window.doApprove = async function(stage){
   }
 
   try{
-    const res = await fetch(SB_URL+'/rest/v1/approvals?month=eq.'+targetMonth+'&year=eq.'+targetYear,{
+    const res = await fetch(SB_URL+'/rest/v1/approvals?month=eq.'+targetMonth+'&year=eq.'+targetYear+'&scope=eq.'+encodeURIComponent(targetScope),{
       method:'PATCH',
       headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
       body: JSON.stringify(body)
@@ -3580,33 +3583,56 @@ function isCeoFinal(){return !!(approvalState&&approvalState.status==='approved'
 const SUBMIT_KEY='inspectex_submit';
 let submitState={};
 try{const s=localStorage.getItem(SUBMIT_KEY);if(s)submitState=JSON.parse(s);}catch(e){}
-function subKey(){return mon+'-'+yr;}
-function subStatus(){return (submitState[subKey()]&&submitState[subKey()].status)||'draft';}
-function isLocked(){const s=subStatus();return s==='submitted'||s==='eng_approved'||s==='fin_approved'||s==='approved';}
+let currentAprScope='all'; // 'all' | 'cat:N' | 'emp:CAT:ID'
+function scopeLabel(scope){
+  scope=scope||currentAprScope;
+  if(!scope||scope==='all') return 'المسير الكامل';
+  if(scope.indexOf('cat:')===0){ var ci=+scope.split(':')[1]; return (typeof CNAMES!=='undefined'&&CNAMES[ci])?CNAMES[ci]:'فئة'; }
+  if(scope.indexOf('emp:')===0){ var parts=scope.split(':'); var ci2=+parts[1], id2=+parts[2]; var e=(DB[ci2]||[]).find(x=>x.id===id2); return e?e.name:'موظف'; }
+  return scope;
+}
+function scopeRows(scope){
+  scope=scope||currentAprScope;
+  if(!scope||scope==='all') return allRows();
+  if(scope.indexOf('cat:')===0){ var ci=+scope.split(':')[1]; return (DB[ci]||[]).map(e=>({...e,_c:ci})); }
+  if(scope.indexOf('emp:')===0){ var parts=scope.split(':'); var ci2=+parts[1], id2=+parts[2]; var e=(DB[ci2]||[]).find(x=>x.id===id2); return e?[{...e,_c:ci2}]:[]; }
+  return allRows();
+}
+function scopeTotals(scope){
+  var rows=scopeRows(scope);
+  var g=0,d=0,n=0;
+  rows.forEach(function(e){ if(e.frozen) return; var c=calc(e); g+=c.g; d+=c.d; n+=c.n; });
+  return {g,d,n,cnt:rows.length};
+}
+function subKey(scope){ scope=scope||currentAprScope; return mon+'-'+yr+((scope&&scope!=='all')?('-'+scope):''); }
+function subStatus(scope){return (submitState[subKey(scope)]&&submitState[subKey(scope)].status)||'draft';}
+function isLocked(scope){const s=subStatus(scope);return s==='submitted'||s==='eng_approved'||s==='fin_approved'||s==='approved';}
 function saveSubmit(){try{localStorage.setItem(SUBMIT_KEY,JSON.stringify(submitState));}catch(e){}}
-function setSubStatus(st){
+function setSubStatus(st,scope){
+  scope=scope||currentAprScope;
   // Send to Supabase when submitted
   if(st==='submitted'){
     // تأكيد الشهر المُرسَل (شهر واحد فقط)
     var _mn=(typeof MNS!=='undefined'?MNS[mon-1]:mon);
-    if(!confirm('سيتم إرسال مسير شهر «'+_mn+' '+yr+'» فقط للاعتماد.\n\nهل أنت على الشهر الصحيح؟\n\nملاحظة: يُرسَل شهر واحد فقط — وليس كل الشهور.')){
-      return;
-    }
-    var at2=allT();
+    var _sl=scopeLabel(scope);
+    if(!confirm('سيتم إرسال «'+_sl+'» — شهر «'+_mn+' '+yr+'» فقط للاعتماد.\n\nهل أنت متأكد؟'))return;
+    var at2=scopeTotals(scope);
+    var rows2=scopeRows(scope);
+    if(!rows2.length){ notify('لا توجد بيانات لهذا النطاق'); return; }
     sbSendApproval({
-      total_employees:allRows().length,
+      total_employees:rows2.filter(e=>!e.frozen).length,
       gross:at2.g, deductions:at2.d, net:at2.n,
       month:mon, year:yr,
+      scope_label:_sl,
       sent_at:new Date().toISOString(),
-      employees:buildApprovalEmployeeList()
-    }).then(function(ok){
-      if(ok) notify('☁️ تم إرسال المسير للاعتماد السحابي');
-      setTimeout(checkAndShowApprovalStatus,1500);
-setTimeout(cloudSyncOnStartup,2500);
+      employees: rows2.filter(e=>!e.frozen).map(function(e){var c=calc(e);return {name:e.name||'—', cat:(typeof CNAMES!=='undefined'&&CNAMES[e._c])?CNAMES[e._c]:'', gross:c.g, deductions:c.d, net:c.n};})
+    }, scope).then(function(ok){
+      if(ok) notify('☁️ تم إرسال «'+_sl+'» للاعتماد السحابي');
+      setTimeout(function(){checkAndShowApprovalStatus(scope);},1500);
     });
-  }submitState[subKey()]=Object.assign({},submitState[subKey()],{status:st,at:new Date().toLocaleString('en-GB')});saveSubmit();}
+  }submitState[subKey(scope)]=Object.assign({},submitState[subKey(scope)],{status:st,at:new Date().toLocaleString('en-GB')});saveSubmit();}
 function guardLocked(){
-  if(isLocked()){
+  if(isLocked('all')){
     const mn=typeof MNS!=='undefined'?MNS[mon-1]:mon;
     if(confirm('🔒 مسير '+mn+' '+yr+' مرحّل للاعتماد.\n\nهل تريد فتحه للتعديل؟\n(سيُلغى الترحيل لهذا الشهر فقط)')){
       unlockMonth();
@@ -3616,8 +3642,9 @@ function guardLocked(){
   }
   return false;
 }
-function unlockMonth(){
-  const k=subKey();
+function unlockMonth(scope){
+  scope=scope||currentAprScope;
+  const k=subKey(scope);
   if(submitState[k]) delete submitState[k];
   try{localStorage.setItem(SUBMIT_KEY,JSON.stringify(submitState));}catch(e){}
   // Also reset sheet approvals for this month
@@ -3627,22 +3654,23 @@ function unlockMonth(){
     if(sheetApr[sk]) delete sheetApr[sk];
   });
   try{localStorage.setItem(SHEET_APR_KEY,JSON.stringify(sheetApr));}catch(e){}
-  notify('✅ تم فتح مسير '+MNS[mon-1]+' '+yr+' للتعديل');
+  notify('✅ تم فتح «'+scopeLabel(scope)+'» — '+MNS[mon-1]+' '+yr+' للتعديل');
   render();
 }
-function submitForApproval(){
-  if(![0,1,2,3,4,5].some(i=>(DB[i]||[]).length) && !clrInFlow()){notify('لا توجد بيانات للترحيل');return;}
-  if(!confirm('ترحيل مسير '+MNS[mon-1]+' '+yr+' للاعتماد؟\nسيُقفل من التعديل حتى يعتمده المهندس أيمن وليد ثم الرئيس التنفيذي.'))return;
-  setSubStatus('submitted');
-  if(typeof auditLog==='function')auditLog('ترحيل_للاعتماد',MNS[mon-1]+' '+yr);
-  notify('🔒 تم ترحيل المسير للاعتماد — أصبح مقفلًا من التعديل');
+function submitForApproval(scope){
+  scope=scope||currentAprScope;
+  var rows=scopeRows(scope);
+  if(!rows.length){notify('لا توجد بيانات للترحيل في هذا النطاق');return;}
+  setSubStatus('submitted', scope);
+  if(typeof auditLog==='function')auditLog('ترحيل_للاعتماد',scopeLabel(scope)+' — '+MNS[mon-1]+' '+yr);
   renderApproval(document.getElementById('mc'));
 }
-function withdrawSubmit(){
-  if(subStatus()==='approved'){ if(!confirm('المسير معتمد نهائيًا. سحب الترحيل سيلغي الاعتماد ويفتح التعديل. متابعة؟'))return; }
-  else if(!confirm('سحب الترحيل وفتح القفل للتعديل؟'))return;
-  setSubStatus('draft');
-  if(typeof auditLog==='function')auditLog('سحب_الترحيل',MNS[mon-1]+' '+yr);
+function withdrawSubmit(scope){
+  scope=scope||currentAprScope;
+  if(subStatus(scope)==='approved'){ if(!confirm('«'+scopeLabel(scope)+'» معتمد نهائيًا. سحب الترحيل سيلغي الاعتماد ويفتح التعديل. متابعة؟'))return; }
+  else if(!confirm('سحب ترحيل «'+scopeLabel(scope)+'» وفتح القفل للتعديل؟'))return;
+  setSubStatus('draft', scope);
+  if(typeof auditLog==='function')auditLog('سحب_الترحيل',scopeLabel(scope)+' — '+MNS[mon-1]+' '+yr);
   notify('🔓 تم سحب الترحيل — يمكنك التعديل الآن');
   renderApproval(document.getElementById('mc'));
 }
@@ -3734,8 +3762,9 @@ function emailApproveLink(){
 }
 
 function renderApproval(mc){
-  const at=allT();
-  const st=subStatus(); const locked=isLocked();
+  const scope=currentAprScope||'all';
+  const at=scopeTotals(scope);
+  const st=subStatus(scope); const locked=isLocked(scope);
   const totalEmp=[0,1,2,3,4,5].reduce((s,i)=>s+(DB[i]||[]).length,0);
 
   const statusMeta = {
@@ -3746,11 +3775,35 @@ function renderApproval(mc){
   };
   const sm = statusMeta[st] || statusMeta.draft;
 
+  const catOptions=[0,1,2,3,4,5].filter(i=>(DB[i]||[]).length>0).map(i=>'<option value="cat:'+i+'"'+(scope==='cat:'+i?' selected':'')+'>'+CNAMES[i]+' ('+(DB[i]||[]).length+')</option>').join('');
+  const empOptions=[0,1,2,3,4,5].flatMap(i=>(DB[i]||[]).map(e=>'<option value="emp:'+i+':'+e.id+'"'+(scope==='emp:'+i+':'+e.id?' selected':'')+'>'+e.name+'</option>')).join('');
+  const scopeType = scope==='all'?'all':(scope.indexOf('cat:')===0?'cat':'emp');
+
   let html=`<div style="max-width:720px;margin:0 auto">
+    <div style="background:#fff;border-radius:14px;padding:18px;margin-bottom:13px;box-shadow:0 2px 10px rgba(26,39,68,.06);border-top:3px solid var(--gold2)">
+      <div style="font-size:12px;font-weight:700;color:#1e293b;margin-bottom:10px"><i class="ti ti-adjustments-alt" style="color:var(--gold2)"></i> اختر نطاق الاعتماد</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:7px 12px;border-radius:8px;border:2px solid ${scopeType==='all'?'var(--gold2)':'#e2e8f0'};background:${scopeType==='all'?'#fffbeb':'#fff'};color:${scopeType==='all'?'#92400e':'#475569'};font-size:12px;font-weight:600">
+          <input type="radio" name="aprScopeType" value="all" ${scopeType==='all'?'checked':''} onchange="currentAprScope='all';renderApproval(document.getElementById('mc'))" style="margin:0">
+          <i class="ti ti-table"></i> المسير الكامل (${totalEmp})
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:7px 12px;border-radius:8px;border:2px solid ${scopeType==='cat'?'var(--gold2)':'#e2e8f0'};background:${scopeType==='cat'?'#fffbeb':'#fff'};color:${scopeType==='cat'?'#92400e':'#475569'};font-size:12px;font-weight:600">
+          <input type="radio" name="aprScopeType" value="cat" ${scopeType==='cat'?'checked':''} onchange="var s=document.getElementById('aprCatSel');currentAprScope=s?s.value:'cat:0';renderApproval(document.getElementById('mc'))" style="margin:0">
+          <i class="ti ti-table-column"></i> فئة محددة
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:7px 12px;border-radius:8px;border:2px solid ${scopeType==='emp'?'var(--gold2)':'#e2e8f0'};background:${scopeType==='emp'?'#fffbeb':'#fff'};color:${scopeType==='emp'?'#92400e':'#475569'};font-size:12px;font-weight:600">
+          <input type="radio" name="aprScopeType" value="emp" ${scopeType==='emp'?'checked':''} onchange="var s=document.getElementById('aprEmpSel');currentAprScope=s?s.value:'';renderApproval(document.getElementById('mc'))" style="margin:0">
+          <i class="ti ti-user"></i> موظف واحد
+        </label>
+        ${scopeType==='cat'?'<select id="aprCatSel" onchange="currentAprScope=this.value;renderApproval(document.getElementById(\'mc\'))" style="padding:7px 10px;border-radius:8px;border:1px solid #e2e8f0;font-size:12px;font-family:inherit;background:#fff">'+catOptions+'</select>':''}
+        ${scopeType==='emp'?'<select id="aprEmpSel" onchange="currentAprScope=this.value;renderApproval(document.getElementById(\'mc\'))" style="padding:7px 10px;border-radius:8px;border:1px solid #e2e8f0;font-size:12px;font-family:inherit;background:#fff;max-width:200px">'+empOptions+'</select>':''}
+      </div>
+    </div>
+
     <div style="background:#fff;border-radius:14px;padding:18px;margin-bottom:13px;box-shadow:0 2px 10px rgba(26,39,68,.06);border-top:3px solid var(--gold)">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
-        <h3 style="font-size:15px;font-weight:800;color:var(--navy);display:flex;align-items:center;gap:8px"><i class="ti ti-checkup-list" style="color:var(--gold)"></i> اعتماد مسير الرواتب</h3>
-        <span style="font-size:12px;color:#64748b">${MNS[mon-1]} ${yr} · ${totalEmp} موظف</span>
+        <h3 style="font-size:15px;font-weight:800;color:var(--navy);display:flex;align-items:center;gap:8px"><i class="ti ti-checkup-list" style="color:var(--gold)"></i> اعتماد: ${scopeLabel(scope)}</h3>
+        <span style="font-size:12px;color:#64748b">${MNS[mon-1]} ${yr} · ${at.cnt} موظف</span>
       </div>
       <div id="cloudApprovalBadge" style="margin-bottom:8px"></div>
       <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px 12px;font-size:11.5px;color:#1e40af;margin-bottom:4px">
@@ -3770,11 +3823,11 @@ function renderApproval(mc){
 
     <div style="background:linear-gradient(135deg,#16223f,#22325c);border-radius:12px;padding:16px 18px;color:#fff;margin-top:12px">
       <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.1);padding-bottom:12px;margin-bottom:13px">
-        <span style="font-size:11px;color:rgba(240,192,96,.8)">صافي المبلغ المستحق</span>
+        <span style="font-size:11px;color:rgba(240,192,96,.8)">صافي المبلغ المستحق (${scopeLabel(scope)})</span>
         <span style="font-size:22px;font-weight:800;color:var(--gold2)">${fmt(at.n)} <span style="font-size:12px">ر.س</span></span>
       </div>
       <div style="text-align:center;font-size:10.5px;color:rgba(255,255,255,.55)">
-        ${st==='draft'?'اضغط «ترحيل للاعتماد» لرفع المسير إلى السحابة، ثم أرسل رابط الاعتماد للمهندس أو الرئيس':st==='approved'?'تم الاعتماد النهائي عبر الرابط الآمن':'بانتظار فتح رابط الاعتماد من المهندس أو الرئيس التنفيذي'}
+        ${st==='draft'?'اضغط «ترحيل للاعتماد» لرفع هذا النطاق إلى السحابة، ثم أرسل رابط الاعتماد للمهندس أو الرئيس':st==='approved'?'تم الاعتماد النهائي عبر الرابط الآمن':'بانتظار فتح رابط الاعتماد من المهندس أو الرئيس التنفيذي'}
       </div>
     </div>
 
@@ -3783,7 +3836,7 @@ function renderApproval(mc){
     </div>
   </div>`;
   mc.innerHTML=html;
-  if(typeof checkAndShowApprovalStatus==='function'){ try{ checkAndShowApprovalStatus(); }catch(e){} }
+  if(typeof checkAndShowApprovalStatus==='function'){ try{ checkAndShowApprovalStatus(scope); }catch(e){} }
 }
 function saveApprovals(){
   saveSheetApr();
@@ -7376,17 +7429,18 @@ const SB_URL = 'https://jyuduksmdklqjddvkofj.supabase.co';
 const SB_KEY = 'sb_publishable_aBLK-zI7b2ViJf_Cd34QkQ_NHb1VhlM';
 
 // Send approval request to Supabase
-async function sbSendApproval(summary){
+async function sbSendApproval(summary, scope){
+  scope = scope || 'all';
   try{
-    // Check if record exists for this month/year
-    const chk = await fetch(SB_URL+'/rest/v1/approvals?month=eq.'+mon+'&year=eq.'+yr,{
+    // Check if record exists for this month/year/scope
+    const chk = await fetch(SB_URL+'/rest/v1/approvals?month=eq.'+mon+'&year=eq.'+yr+'&scope=eq.'+encodeURIComponent(scope),{
       headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json'}
     });
     const existing = await chk.json();
 
     const skipEng = (typeof isEngSkipped==='function') && isEngSkipped();
     const payload = {
-      month: mon, year: yr,
+      month: mon, year: yr, scope: scope,
       status: 'pending',
       approved_by: null,
       approved_at: null,
@@ -7398,7 +7452,7 @@ async function sbSendApproval(summary){
 
     if(existing && existing.length > 0){
       // Update existing
-      await fetch(SB_URL+'/rest/v1/approvals?month=eq.'+mon+'&year=eq.'+yr,{
+      await fetch(SB_URL+'/rest/v1/approvals?month=eq.'+mon+'&year=eq.'+yr+'&scope=eq.'+encodeURIComponent(scope),{
         method:'PATCH',
         headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
         body: JSON.stringify(payload)
@@ -7416,9 +7470,10 @@ async function sbSendApproval(summary){
 }
 
 // Check approval status from Supabase
-async function sbCheckApproval(){
+async function sbCheckApproval(scope){
+  scope = scope || 'all';
   try{
-    const res = await fetch(SB_URL+'/rest/v1/approvals?month=eq.'+mon+'&year=eq.'+yr+'&select=status,approved_by,approved_at',{
+    const res = await fetch(SB_URL+'/rest/v1/approvals?month=eq.'+mon+'&year=eq.'+yr+'&scope=eq.'+encodeURIComponent(scope)+'&select=status,approved_by,approved_at',{
       headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}
     });
     const data = await res.json();
@@ -7428,8 +7483,9 @@ async function sbCheckApproval(){
 }
 
 // Show approval status in UI
-async function checkAndShowApprovalStatus(){
-  const result = await sbCheckApproval();
+async function checkAndShowApprovalStatus(scope){
+  scope = scope || currentAprScope || 'all';
+  const result = await sbCheckApproval(scope);
   const badge = document.getElementById('cloudApprovalBadge');
   if(!badge) return;
   if(!result){
@@ -8142,23 +8198,25 @@ function filterMoreMenu(q){
   const noRes=document.getElementById('moreNoResults');
   if(noRes) noRes.style.display=anyVisible?'none':'block';
 }
-function showApprovalLinkModal(){
+function showApprovalLinkModal(scope){
+  scope = scope || currentAprScope || 'all';
   var existing=document.getElementById('approvalLinkModal');
   if(existing) existing.remove();
   var base = window.location.origin + window.location.pathname;
-  var link = base + '?approve&month=' + mon + '&year=' + yr;
+  var link = base + '?approve&month=' + mon + '&year=' + yr + '&scope=' + encodeURIComponent(scope);
+  var sl = scopeLabel(scope);
   var modal=document.createElement('div');
   modal.id='approvalLinkModal';
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:20px';
   modal.innerHTML='<div style="background:#fff;border-radius:16px;max-width:420px;width:100%;overflow:hidden;font-family:inherit">'
-    +'<div style="background:linear-gradient(135deg,#0d1b35,#1a2f5e);padding:16px 20px;color:#fff;font-size:15px;font-weight:800"><i class="ti ti-link"></i> رابط اعتماد مسير '+MNS[mon-1]+' '+yr+'</div>'
+    +'<div style="background:linear-gradient(135deg,#0d1b35,#1a2f5e);padding:16px 20px;color:#fff;font-size:15px;font-weight:800"><i class="ti ti-link"></i> رابط اعتماد: '+sl+' — '+MNS[mon-1]+' '+yr+'</div>'
     +'<div style="padding:20px">'
     +'<div style="font-size:11.5px;color:#64748b;margin-bottom:10px">هذا الرابط دائم — احفظه أو أرسله متى احتجت، بدل ما تعتمد على نسخة واحدة قد تضيع.</div>'
     +'<div style="display:flex;gap:6px;margin-bottom:14px">'
     +'<input id="approvalLinkInput" type="text" readonly value="'+link+'" style="flex:1;padding:10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:11px;direction:ltr;text-align:left;font-family:monospace;background:#f8fafc">'
     +'<button onclick="copyApprovalLink()" style="background:#0d1b35;color:#fff;border:none;border-radius:8px;padding:0 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap"><i class="ti ti-copy"></i> نسخ</button>'
     +'</div>'
-    +'<button onclick="var m=document.getElementById(\'wa_num\');if(m)m.value=\'\';var mm=document.getElementById(\'wa_msg\');if(mm)mm.value=\'رابط اعتماد مسير '+MNS[mon-1]+' '+yr+':\\n'+link+'\';document.getElementById(\'approvalLinkModal\').remove();om(\'waM\')" style="width:100%;background:#f0fdf4;color:#16a34a;border:1.5px solid #bbf7d0;border-radius:9px;padding:11px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px;font-family:inherit"><i class="ti ti-brand-whatsapp"></i> إرسال عبر واتساب</button>'
+    +'<button onclick="var m=document.getElementById(\'wa_num\');if(m)m.value=\'\';var mm=document.getElementById(\'wa_msg\');if(mm)mm.value=\'رابط اعتماد ('+sl+') لمسير '+MNS[mon-1]+' '+yr+':\\n'+link+'\';document.getElementById(\'approvalLinkModal\').remove();om(\'waM\')" style="width:100%;background:#f0fdf4;color:#16a34a;border:1.5px solid #bbf7d0;border-radius:9px;padding:11px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px;font-family:inherit"><i class="ti ti-brand-whatsapp"></i> إرسال عبر واتساب</button>'
     +'<button onclick="document.getElementById(\'approvalLinkModal\').remove()" style="width:100%;background:#f1f5f9;color:#475569;border:none;border-radius:9px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">إغلاق</button>'
     +'</div></div>';
   modal.addEventListener('click',function(e){ if(e.target===modal) modal.remove(); });
