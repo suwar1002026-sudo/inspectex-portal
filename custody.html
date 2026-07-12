@@ -2681,6 +2681,13 @@ function showReceipt(id) {
   const mgr = DB.settings.manager || '—';
   const ref = 'CUS-' + (c.date||'').replace(/-/g,'').slice(0,8) + '-' + c.id.slice(-4).toUpperCase();
   const isSett = c.status === 'مسوّاة';
+  const docTitle   = isSett ? 'بيان تسليم عهدة (إخلاء طرف)' : 'بيان استلام عهدة';
+  const docSub     = isSett ? `مُسلَّم من الموظف إلى ${co} — بموجب الأنظمة والسياسات الداخلية المعتمدة` : `مُسلَّم من ${co} إلى الموظف — بموجب الأنظمة والسياسات الداخلية المعتمدة`;
+  const sec1Lbl    = isSett ? '١ — بيانات الموظف المُسلِّم' : '١ — بيانات الموظف المُستلِم';
+  const sec2Lbl    = isSett ? '٢ — تفاصيل العهدة المُسلَّمة' : '٢ — تفاصيل العهدة المُستلَمة';
+  const rcvFieldLbl= isSett ? 'المستلم عن الشركة' : 'المُسلِّم عن الشركة';
+  const sig1Lbl    = isSett ? 'الموظف المُسلِّم' : 'الموظف المُستلِم';
+  const sig2Lbl    = isSett ? 'المستلم عن الشركة' : 'المُسلِّم عن الشركة';
   const totalQty = c.items.reduce((s,it)=>s+(parseInt(it.qty)||0),0);
   const rows = c.items.map((it,i) =>
     `<tr><td style="text-align:center;font-weight:800;color:#142a52;padding:5px 7px;border-bottom:1px solid #eef0f6;font-size:11px;">${i+1}</td><td style="padding:5px 7px;border-bottom:1px solid #eef0f6;font-size:11px;font-weight:600;color:#1b1d28;">${it.name}</td><td style="text-align:center;padding:5px 7px;border-bottom:1px solid #eef0f6;font-size:11px;color:#1b1d28;">${it.qty}</td><td style="text-align:center;padding:5px 7px;border-bottom:1px solid #eef0f6;font-family:monospace;font-size:10px;color:#555;">${it.serial||'—'}</td><td style="text-align:center;padding:5px 7px;border-bottom:1px solid #eef0f6;font-size:10px;color:#5a5f73;">${it.cat||'—'}</td></tr>`
@@ -2697,12 +2704,12 @@ function showReceipt(id) {
     </div>
 
     <div style="text-align:center;margin-bottom:14px;">
-      <h1 style="font-size:14.5px;font-weight:900;color:#142a52;">بيان تسليم عهدة (إخلاء طرف)</h1>
-      <p style="font-size:10px;color:#525868;margin-top:3px;">مُسلَّم من الموظف إلى ${co} — بموجب الأنظمة والسياسات الداخلية المعتمدة</p>
+      <h1 style="font-size:14.5px;font-weight:900;color:#142a52;">${docTitle}</h1>
+      <p style="font-size:10px;color:#525868;margin-top:3px;">${docSub}</p>
       <span style="display:inline-block;margin-top:7px;padding:3px 14px;border-radius:20px;font-size:10px;font-weight:700;background:${isSett?'#e6f7f1':'#fff4e0'};color:${isSett?'#0CA678':'#b76a00'};border:1px solid ${isSett?'#a9e6d1':'#f3d49a'};">${isSett?'✅ مُسوّاة بالكامل':'⏳ عهدة نشطة'}</span>
     </div>
 
-    <div style="font-size:10.5px;font-weight:800;color:#fff;background:#142a52;padding:4px 10px;border-radius:5px 5px 0 0;display:inline-block;">١ — بيانات الموظف المُسلِّم</div>
+    <div style="font-size:10.5px;font-weight:800;color:#fff;background:#142a52;padding:4px 10px;border-radius:5px 5px 0 0;display:inline-block;">${sec1Lbl}</div>
     <div style="border:1px solid #e2e4ec;border-radius:0 7px 7px 7px;padding:10px 12px;margin-bottom:10px;display:grid;grid-template-columns:1fr 1fr;gap:5px 18px;">
       ${infoRow('الاسم الكامل', e.name||'—')}
       ${infoRow('رقم الهوية', e.idNo||'—')}
@@ -2712,7 +2719,7 @@ function showReceipt(id) {
       ${infoRow('الفرع / الموقع', e.branch||e.location||'—')}
     </div>
 
-    <div style="font-size:10.5px;font-weight:800;color:#fff;background:#142a52;padding:4px 10px;border-radius:5px 5px 0 0;display:inline-block;">٢ — تفاصيل العهدة المُسلَّمة</div>
+    <div style="font-size:10.5px;font-weight:800;color:#fff;background:#142a52;padding:4px 10px;border-radius:5px 5px 0 0;display:inline-block;">${sec2Lbl}</div>
     <div style="border:1px solid #e2e4ec;border-radius:0 7px 7px 7px;margin-bottom:10px;overflow:hidden;">
       <table style="width:100%;border-collapse:collapse;">
         <thead><tr style="background:#f3f4fa;"><th style="padding:6px 7px;text-align:center;font-size:9.5px;color:#142a52;width:24px;">#</th><th style="padding:6px 7px;text-align:right;font-size:9.5px;color:#142a52;">الصنف / العهدة</th><th style="padding:6px 7px;text-align:center;font-size:9.5px;color:#142a52;width:50px;">الكمية</th><th style="padding:6px 7px;text-align:center;font-size:9.5px;color:#142a52;">الرقم التسلسلي</th><th style="padding:6px 7px;text-align:center;font-size:9.5px;color:#142a52;">الفئة</th></tr></thead>
@@ -2724,7 +2731,7 @@ function showReceipt(id) {
     <div style="font-size:10.5px;font-weight:800;color:#fff;background:#142a52;padding:4px 10px;border-radius:5px 5px 0 0;display:inline-block;">٣ — بيانات التسليم والاستلام</div>
     <div style="border:1px solid #e2e4ec;border-radius:0 7px 7px 7px;padding:10px 12px;margin-bottom:10px;display:grid;grid-template-columns:1fr 1fr;gap:5px 18px;">
       ${infoRow('تاريخ التسليم', c.date)}
-      ${infoRow('المستلم عن الشركة', c.rcv||'—')}
+      ${infoRow(rcvFieldLbl, c.rcv||'—')}
       ${infoRow('المسؤول / المعتمِد', c.resp||mgr)}
       ${c.val?infoRow('القيمة المالية التقديرية', c.val+' ريال سعودي', '#b76a00'):'<div></div>'}
     </div>
@@ -2735,12 +2742,12 @@ function showReceipt(id) {
     <div style="font-size:10.5px;font-weight:800;color:#142a52;margin-bottom:6px;">٤ — التوقيعات والاعتماد</div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
       <div style="border:1px solid #e2e4ec;border-radius:8px;padding:8px;text-align:center;background:#fcfcfe;">
-        <div style="font-size:9.5px;font-weight:800;color:#142a52;">الموظف المُسلِّم</div>
+        <div style="font-size:9.5px;font-weight:800;color:#142a52;">${sig1Lbl}</div>
         <div style="height:24px;border-bottom:1px dashed #c2c5d3;margin:8px 0 4px;"></div>
         <div style="font-size:10px;font-weight:700;color:#333;">${e.name||'—'}</div>
       </div>
       <div style="border:1px solid #e2e4ec;border-radius:8px;padding:8px;text-align:center;background:#fcfcfe;">
-        <div style="font-size:9.5px;font-weight:800;color:#142a52;">المستلم عن الشركة</div>
+        <div style="font-size:9.5px;font-weight:800;color:#142a52;">${sig2Lbl}</div>
         <div style="height:24px;border-bottom:1px dashed #c2c5d3;margin:8px 0 4px;"></div>
         <div style="font-size:10px;font-weight:700;color:#333;">${c.rcv||'—'}</div>
       </div>
@@ -3044,6 +3051,19 @@ function printReceipt() {
   const co = DB.settings.company || 'الشركة';
   const mgr = DB.settings.manager || '—';
   const isSett = c.status === 'مسوّاة';
+  const docTitle   = isSett ? 'بيان تسليم عهدة (إخلاء طرف)' : 'بيان استلام عهدة';
+  const docSub     = isSett ? `مُسلَّم من الموظف إلى ${co} — بموجب الأنظمة والسياسات الداخلية المعتمدة` : `مُسلَّم من ${co} إلى الموظف — بموجب الأنظمة والسياسات الداخلية المعتمدة`;
+  const sec1Lbl    = isSett ? '١ — بيانات الموظف المُسلِّم' : '١ — بيانات الموظف المُستلِم';
+  const sec2Lbl    = isSett ? '٢ — تفاصيل العهدة المُسلَّمة' : '٢ — تفاصيل العهدة المُستلَمة';
+  const rcvFieldLbl= isSett ? 'المستلم عن الشركة' : 'المُسلِّم عن الشركة';
+  const sig1Lbl    = isSett ? 'الموظف المُسلِّم' : 'الموظف المُستلِم';
+  const sig2Lbl    = isSett ? 'المستلم عن الشركة' : 'المُسلِّم عن الشركة';
+  const pledgeTxt  = isSett
+    ? 'يُقرّ الموظف المذكور أعلاه بأنه قام بتسليم العهدة الموضحة بالكشف أعلاه إلى الجهة المختصة بـ'+co+' بكامل بنودها وبالحالة المبيّنة قرين كل صنف.'
+    : 'يُقرّ الموظف المذكور أعلاه بأنه استلم العهدة الموضحة بالكشف أعلاه من '+co+' بكامل بنودها وبالحالة المبيّنة قرين كل صنف.';
+  const pledgeTxt2 = isSett
+    ? 'يُخلي هذا البيان طرف الموظف من العهدة المذكورة فور توقيعه واستلام الطرف الآخر لها، ولا يُعتدّ بأي مطالبة لاحقة بشأنها.'
+    : 'يتعهّد الموظف بالمحافظة على العهدة المذكورة واستخدامها فيما خُصصت له، وإعادتها بحالة جيدة عند الطلب أو عند انتهاء علاقته الوظيفية.';
   w.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8">
   <title>بيان تسليم عهدة — ${ref}</title>
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
@@ -3136,12 +3156,12 @@ function printReceipt() {
     </div>
 
     <div class="ttl-row">
-      <h1>بيان تسليم عهدة (إخلاء طرف)</h1>
-      <p>مُسلَّم من الموظف إلى ${co} — بموجب الأنظمة والسياسات الداخلية المعتمدة</p>
+      <h1>${docTitle}</h1>
+      <p>${docSub}</p>
       <span class="status-chip">${isSett?'✅ مُسوّاة بالكامل':'⏳ عهدة نشطة'}</span>
     </div>
 
-    <div class="sec-lbl">١ — بيانات الموظف المُسلِّم</div>
+    <div class="sec-lbl">${sec1Lbl}</div>
     <div class="sec-box"><div class="sec-pad info-grid">
       <div class="info-row"><span class="info-k">الاسم الكامل</span><span class="info-v">${e.name||'—'}</span></div>
       <div class="info-row"><span class="info-k">رقم الهوية</span><span class="info-v">${e.idNo||'—'}</span></div>
@@ -3151,7 +3171,7 @@ function printReceipt() {
       <div class="info-row"><span class="info-k">الموقع</span><span class="info-v">${e.location||'—'}</span></div>
     </div></div>
 
-    <div class="sec-lbl">٢ — تفاصيل العهدة المُسلَّمة</div>
+    <div class="sec-lbl">${sec2Lbl}</div>
     <div class="sec-box"><div class="sec-pad" style="padding:0;">
       <table>
         <thead><tr><th style="width:26px;">#</th><th class="l">الصنف / العهدة</th><th style="width:50px;">الكمية</th><th>الرقم التسلسلي</th><th>الفئة</th></tr></thead>
@@ -3163,7 +3183,7 @@ function printReceipt() {
     <div class="sec-lbl">٣ — بيانات التسليم والاستلام</div>
     <div class="sec-box"><div class="sec-pad info-grid">
       <div class="info-row"><span class="info-k">تاريخ التسليم</span><span class="info-v">${c.date}</span></div>
-      <div class="info-row"><span class="info-k">المستلم عن الشركة</span><span class="info-v">${c.rcv||'—'}</span></div>
+      <div class="info-row"><span class="info-k">${rcvFieldLbl}</span><span class="info-v">${c.rcv||'—'}</span></div>
       <div class="info-row"><span class="info-k">المسؤول / المعتمِد</span><span class="info-v">${c.resp||mgr}</span></div>
       ${c.val?`<div class="info-row"><span class="info-k">القيمة المالية التقديرية</span><span class="info-v" style="color:#b76a00;">${c.val} ريال سعودي</span></div>`:'<div class="info-row"></div>'}
       <div class="info-row" style="grid-column:1/-1;"><span class="info-k">بيان حالة العهدة</span><span class="info-v" style="font-weight:600;">${c.note||'سليمة وبحالة جيدة دون ملاحظات'}</span></div>
@@ -3174,24 +3194,24 @@ function printReceipt() {
     <div class="pledge-box">
       <div class="pt">٤ — الإقرار والتعهد</div>
       <ol>
-        <li>يُقرّ الموظف المذكور أعلاه بأنه قام بتسليم العهدة الموضحة بالكشف أعلاه إلى الجهة المختصة بـ${co} بكامل بنودها وبالحالة المبيّنة قرين كل صنف.</li>
-        <li>يُخلي هذا البيان طرف الموظف من العهدة المذكورة فور توقيعه واستلام الطرف الآخر لها، ولا يُعتدّ بأي مطالبة لاحقة بشأنها.</li>
+        <li>${pledgeTxt}</li>
+        <li>${pledgeTxt2}</li>
         <li>في حال ثبوت وجود تلف أو نقص أو فقدان في أي من بنود العهدة لم يُفصح عنه عند التسليم، يحقّ للشركة اتخاذ الإجراءات النظامية اللازمة، بما في ذلك خصم القيمة من مستحقات الموظف وفق الأنظمة المعمول بها.</li>
-        <li>هذا المستند جزء لا يتجزأ من ملف الموظف، ويُعتمد كإثبات رسمي لإتمام إجراءات تسليم العهدة بين الطرفين.</li>
+        <li>هذا المستند جزء لا يتجزأ من ملف الموظف، ويُعتمد كإثبات رسمي لإتمام إجراءات ${isSett?'تسليم':'استلام'} العهدة بين الطرفين.</li>
       </ol>
     </div>
 
     <div class="sig-lbl">٥ — التوقيعات والاعتماد</div>
     <div class="sig-grid">
       <div class="sig-box">
-        <div class="sig-role">الموظف المُسلِّم</div>
+        <div class="sig-role">${sig1Lbl}</div>
         <div class="sig-name">${e.name||'—'}</div>
         <div class="sig-id">${e.idNo?('هوية: '+e.idNo):''}</div>
         <div class="sig-line"></div>
         <div class="sig-cap">التوقيع &nbsp;•&nbsp; ${c.date}</div>
       </div>
       <div class="sig-box">
-        <div class="sig-role">المستلم عن الشركة</div>
+        <div class="sig-role">${sig2Lbl}</div>
         <div class="sig-name">${c.rcv||'—'}</div>
         <div class="sig-id">${DB.settings.defDept||'إدارة العهد والمستلزمات'}</div>
         <div class="sig-line"></div>
