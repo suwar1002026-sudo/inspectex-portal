@@ -1932,21 +1932,48 @@ function saveCust() {
 }
 
 /* ══ ONLINE APPROVAL SYSTEM (اعتماد الموظف أون لاين) ══ */
-function showApprovalModal(custId) {
+// ⚠️ إصلاح: كان الرابط يحتوي كامل بيانات العهدة مُرمّزة base64 داخل الـ URL نفسه، مما يجعله
+// طويلاً جداً (يصعب مشاركته أو قد يُقطع في بعض التطبيقات). الآن نرفع البيانات لسجل صغير
+// في السحابة (نفس جدول payroll_data) ونضع في الرابط معرّفاً قصيراً فقط بدل البيانات كاملة.
+async function showApprovalModal(custId) {
   const c = DB.custodies.find(x=>x.id===custId); if(!c) return;
   const e = DB.employees.find(x=>x.id===c.empId)||{};
   const co = DB.settings.company||'الشركة';
-  // بناء payload مشفّر بـ base64 يحتوي بيانات العهدة كاملة
-  const payload = btoa(encodeURIComponent(JSON.stringify({
+  const isReturn = c.status === 'مسوّاة'; // إرجاع/تسوية من الموظف للشركة، وليس تسليم له
+  const approvalData = {
     custId: c.id, token: c.approvalToken, co, empName: e.name, empId: e.idNo,
-    empJob: e.job, empPhone: e.phone||'', date: c.date, dept: c.dept||'',
+    empJob: e.job, empPhone: e.phone||'', date: isReturn?(c.settDate||c.date):c.date, dept: c.dept||'',
     items: c.items, val: c.val||'', rcv: c.rcv||'', resp: c.resp||'',
-    dept: c.dept||'', branch: c.branch2||e.branch||'', supplier: c.supplier||'',
-    note: c.note||'', invoice: c.invoice||''
-  })));
-  // رابط يفتح صفحة الاعتماد ضمن نفس الملف بـ ?approve=...
-  const approvalUrl = window.location.href.split('?')[0] + '?approve=' + encodeURIComponent(payload);
-  const waText = encodeURIComponent(`مرحباً ${e.name}،\n\nيرجى الاطلاع على بيانات العهدة المخصصة لك من ${co} والموافقة عليها إلكترونياً عبر الرابط أدناه:\n\n${approvalUrl}\n\nالقسم: ${c.dept||'—'} | التاريخ: ${c.date}`);
+    branch: c.branch2||e.branch||'', supplier: c.supplier||'',
+    note: c.note||'', invoice: c.invoice||'', isReturn: isReturn,
+    settNote: c.settNote||'', settRcv: c.settRcv||''
+  };
+  document.getElementById('approvalBody').innerHTML = `
+    <div style="background:linear-gradient(135deg,#eef2ff,#e0e7ff);border:1px solid #c7d2fe;border-radius:10px;padding:1rem 1.2rem;margin-bottom:1rem;">
+      <div style="font-size:12px;color:#4338ca;margin-bottom:.5rem;">الموظف: <strong>${e.name||'—'}</strong> | القسم: <strong>${c.dept||'—'}</strong></div>
+      <div style="font-size:11px;color:#6366f1;">العهدة: ${c.items.map(x=>x.name).slice(0,3).join('، ')}${c.items.length>3?'...':''}</div>
+    </div>
+    <div style="text-align:center;padding:1rem;font-size:12px;color:var(--tx3);">⏳ جارٍ إنشاء رابط الاعتماد...</div>
+  `;
+  op('approvalModal');
+  const shortId = custId.slice(-6)+Math.random().toString(36).slice(2,9);
+  let approvalUrl;
+  try{
+    const put = await fetch(SB_URL+'/rest/v1/payroll_data',{
+      method:'POST',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},
+      body: JSON.stringify({data_key:'apr_'+shortId, data_value:approvalData})
+    });
+    if(!put.ok) throw new Error('upload failed');
+    approvalUrl = window.location.href.split('?')[0] + '?approve=' + shortId;
+  }catch(err){
+    // احتياطي: لو فشل الرفع للسحابة، نرجع للطريقة القديمة (رابط طويل يحمل البيانات كاملة) بدل ما يفشل الرابط تماماً
+    const payload = btoa(encodeURIComponent(JSON.stringify(approvalData)));
+    approvalUrl = window.location.href.split('?')[0] + '?approve=' + encodeURIComponent(payload);
+  }
+  const waText = isReturn
+    ? encodeURIComponent(`مرحباً ${e.name}،\n\nيرجى الاطلاع على بيان إرجاع العهدة الخاص بك إلى ${co} والتوقيع إلكترونياً على تسليمها بحالة جيدة عبر الرابط أدناه:\n\n${approvalUrl}\n\nالقسم: ${c.dept||'—'} | التاريخ: ${c.settDate||c.date}`)
+    : encodeURIComponent(`مرحباً ${e.name}،\n\nيرجى الاطلاع على بيانات العهدة المخصصة لك من ${co} والموافقة عليها إلكترونياً عبر الرابط أدناه:\n\n${approvalUrl}\n\nالقسم: ${c.dept||'—'} | التاريخ: ${c.date}`);
   window._approvalUrl = approvalUrl;
   window._approvalWA  = `https://wa.me/${(e.phone||'').replace(/\D/g,'')}?text=${waText}`;
   window._approvalCustId = custId;
@@ -1962,7 +1989,6 @@ function showApprovalModal(custId) {
     </div>
     <div style="font-size:11px;color:var(--tx3);">💡 أرسل هذا الرابط للموظف عبر واتساب أو البريد. سيفتح صفحة الاعتماد ويوقّع رقمياً.</div>
   `;
-  op('approvalModal');
 }
 function openApprovalPage() { if(window._approvalUrl) window.open(window._approvalUrl,'_blank'); }
 function sendApprovalWA()   { if(window._approvalWA)  window.open(window._approvalWA,'_blank'); }
@@ -1972,15 +1998,93 @@ function checkApprovalMode() {
   const params = new URLSearchParams(window.location.search);
   const raw = params.get('approve');
   if (!raw) return false;
+  // الروابط الجديدة القصيرة: معرّف قصير (~15 حرفاً) يُجلب منه البيانات من السحابة
+  if (raw.length < 40) {
+    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#eef0f4;font-family:\'Tajawal\',Arial,sans-serif;color:#3B5BDB;font-weight:800;font-size:14px;">⏳ جارٍ تحميل بيانات العهدة...</div>';
+    fetch(SB_URL+'/rest/v1/payroll_data?data_key=eq.apr_'+encodeURIComponent(raw)+'&select=data_value',{headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}})
+      .then(r=>r.json())
+      .then(rows=>{
+        if(rows && rows[0] && rows[0].data_value){ renderApprovalPage(rows[0].data_value); }
+        else { document.body.innerHTML='<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#eef0f4;font-family:\'Tajawal\',Arial,sans-serif;color:#B52626;font-weight:700;font-size:13px;padding:20px;text-align:center;">⚠️ لم يتم العثور على بيانات العهدة. الرابط قد يكون غير صحيح أو منتهي الصلاحية.</div>'; }
+      })
+      .catch(()=>{ document.body.innerHTML='<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#eef0f4;font-family:\'Tajawal\',Arial,sans-serif;color:#B52626;font-weight:700;font-size:13px;padding:20px;text-align:center;">⚠️ تعذّر تحميل بيانات العهدة. تحقق من اتصال الإنترنت وأعد فتح الرابط.</div>'; });
+    return true;
+  }
+  // توافقاً مع الروابط القديمة الطويلة (بيانات مُرمّزة كاملة داخل الرابط)
   try {
     const data = JSON.parse(decodeURIComponent(atob(raw)));
     renderApprovalPage(data);
     return true;
   } catch(e) { return false; }
 }
+// ══ دوال لوحة التوقيع وإرسال الاعتماد — مُعرَّفة كدوال عامة حقيقية (وليست داخل innerHTML)
+// لأن المتصفحات لا تُنفّذ وسوم <script> المُدرَجة عبر innerHTML إطلاقًا (إجراء أمني قياسي) —
+// وهذا كان السبب الجذري في أن زر "اعتماد وتوقيع" لا يعمل نهائيًا مهما فعل الموظف.
+let _sigCanvas=null,_sigCtx=null,_sigDrawing=false;
+function _getSigPos(e){
+  const rect=_sigCanvas.getBoundingClientRect();
+  const scX=_sigCanvas.width/rect.width, scY=_sigCanvas.height/rect.height;
+  const src=e.touches?e.touches[0]:e;
+  return {x:(src.clientX-rect.left)*scX, y:(src.clientY-rect.top)*scY};
+}
+function initSigCanvas(){
+  _sigCanvas=document.getElementById('sigCanvas'); if(!_sigCanvas) return;
+  _sigCtx=_sigCanvas.getContext('2d'); _sigDrawing=false;
+  _sigCanvas.addEventListener('mousedown', e=>{ _sigDrawing=true; const p=_getSigPos(e); _sigCtx.beginPath(); _sigCtx.moveTo(p.x,p.y); });
+  _sigCanvas.addEventListener('mousemove', e=>{ if(!_sigDrawing) return; const p=_getSigPos(e); _sigCtx.lineWidth=2.5; _sigCtx.lineCap='round'; _sigCtx.strokeStyle='#142a52'; _sigCtx.lineTo(p.x,p.y); _sigCtx.stroke(); });
+  _sigCanvas.addEventListener('mouseup', ()=>_sigDrawing=false);
+  _sigCanvas.addEventListener('touchstart', e=>{ e.preventDefault(); _sigDrawing=true; const p=_getSigPos(e); _sigCtx.beginPath(); _sigCtx.moveTo(p.x,p.y); },{passive:false});
+  _sigCanvas.addEventListener('touchmove', e=>{ e.preventDefault(); if(!_sigDrawing) return; const p=_getSigPos(e); _sigCtx.lineWidth=2.5; _sigCtx.lineCap='round'; _sigCtx.strokeStyle='#142a52'; _sigCtx.lineTo(p.x,p.y); _sigCtx.stroke(); },{passive:false});
+  _sigCanvas.addEventListener('touchend', ()=>_sigDrawing=false);
+}
+function clearSig(){ if(_sigCtx&&_sigCanvas) _sigCtx.clearRect(0,0,_sigCanvas.width,_sigCanvas.height); }
+async function submitApproval(custId, token, isReturn){
+  const isEmpty = !_sigCanvas.toDataURL().includes('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA');
+  if(isEmpty){ const imgData=_sigCtx.getImageData(0,0,_sigCanvas.width,_sigCanvas.height); const allZero=imgData.data.every((v,i)=>i%4===3?true:v===0); if(allZero){alert('يرجى رسم توقيعك أولاً'); return;} }
+  const btn=document.getElementById('submitApprovalBtn');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ جارٍ إرسال الموافقة...'; }
+  const sigData=_sigCanvas.toDataURL('image/png',0.5);
+  const nowDate=new Date().toISOString().slice(0,10);
+  // حفظ محلي احتياطي (لو صدفة نفس المتصفح)
+  try{
+    const db=JSON.parse(localStorage.getItem('cDB3')||'{}');
+    const c=(db.custodies||[]).find(x=>x.id===custId && x.approvalToken===token);
+    if(c){ c.approvalStatus=isReturn?'إرجاع معتمَد':'معتمَد'; c.approvalDate=nowDate; c.approvalSig=sigData; localStorage.setItem('cDB3',JSON.stringify(db)); }
+  }catch(e){}
+  // الحفظ الفعلي المهم: إرسال الاعتماد للسحابة حتى يصل للشركة بغض النظر عن جهاز الموظف
+  let cloudOk=false;
+  try{
+    const chk=await fetch(SB_URL+'/rest/v1/payroll_data?data_key=eq.'+CUSTODY_CLOUD_KEY+'&select=data_value',{headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}});
+    if(chk.ok){
+      const rows=await chk.json();
+      if(rows && rows[0] && rows[0].data_value && rows[0].data_value.db){
+        const cloudDB=rows[0].data_value.db;
+        const c2=(cloudDB.custodies||[]).find(x=>x.id===custId && x.approvalToken===token);
+        if(c2){
+          c2.approvalStatus=isReturn?'إرجاع معتمَد':'معتمَد'; c2.approvalDate=nowDate; c2.approvalSig=sigData;
+          const put=await fetch(SB_URL+'/rest/v1/payroll_data?data_key=eq.'+CUSTODY_CLOUD_KEY,{
+            method:'PATCH',
+            headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
+            body:JSON.stringify({data_value:{db:cloudDB,_rev:Date.now()}})
+          });
+          cloudOk=put.ok;
+        }
+      }
+    }
+  }catch(e){ console.error('approval cloud sync error:',e); }
+  document.getElementById('sigArea').style.display='none';
+  document.getElementById('approvedMsg').style.display='block';
+  document.getElementById('approvedMsgSub').textContent = cloudOk
+    ? 'تم تسجيل موافقتك وتوقيعك الإلكتروني وإرساله للشركة بنجاح. يمكنك إغلاق هذه الصفحة.'
+    : 'تم تسجيل توقيعك، لكن تعذّر إرساله للشركة الآن (تحقق من الإنترنت). أعد فتح نفس الرابط لاحقًا إن أمكن، أو تواصل مع الشركة لتأكيد الاعتماد.';
+}
 function renderApprovalPage(data) {
   document.body.innerHTML = '';
-  document.body.style.cssText = 'margin:0;padding:0;font-family:"Tajawal",Arial,sans-serif;direction:rtl;background:#eef0f4;';
+  // ⚠️ إصلاح وضوح الخط: لازم نحدد color صراحة هنا، لأن الستايل العام للتطبيق (body{color:var(--tx)})
+  // يضبط لون النص الافتراضي على لون فاتح جداً (#E8E8F8) مخصص لخلفية داكنة — وبدون هذا التحديد
+  // الصريح، أي نص بلا لون خاص به (مثل قيم الحقول وأسماء الأصناف) يظهر شبه غير مرئي هنا.
+  document.body.style.cssText = 'margin:0;padding:0;font-family:"Tajawal",Arial,sans-serif;direction:rtl;background:#eef0f4;color:#1b1d28;';
+  const isReturn = !!data.isReturn;
   const rows = data.items.map((it,i)=>`<tr><td style="text-align:center;font-weight:800;color:#142a52;">${i+1}</td><td style="font-weight:600;">${it.name}</td><td style="text-align:center;">${it.qty}</td><td style="font-family:monospace;font-size:10px;color:#555;">${it.serial||'—'}</td></tr>`).join('');
   document.body.innerHTML = `
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;600;700;800;900&display=swap" rel="stylesheet"/>
@@ -1989,12 +2093,12 @@ function renderApprovalPage(data) {
       <div style="border-bottom:3px solid #E67700;padding-bottom:10px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;">
         <div>
           <div style="font-size:15px;font-weight:900;color:#142a52;">${data.co}</div>
-          <div style="font-size:10px;color:#6a6e80;">نموذج اعتماد استلام عهدة إلكتروني</div>
+          <div style="font-size:10px;color:#6a6e80;">نموذج ${isReturn?'اعتماد إرجاع':'اعتماد استلام'} عهدة إلكتروني</div>
         </div>
         <div style="text-align:left;font-size:10px;color:#5a5f73;">التاريخ: <b>${data.date}</b><br>القسم: <b>${data.dept||'—'}</b></div>
       </div>
       <div style="background:#fff4e0;border:1.5px solid #f3d49a;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px;font-weight:700;color:#92400e;">
-        📋 طلب اعتماد استلام عهدة — يرجى المراجعة والتوقيع
+        📋 طلب اعتماد ${isReturn?'إرجاع':'استلام'} عهدة — يرجى المراجعة والتوقيع
       </div>
       <div style="background:#f6f7fb;border:1px solid #e2e4ec;border-radius:8px;padding:10px 14px;margin-bottom:12px;display:grid;grid-template-columns:1fr 1fr;gap:5px 16px;font-size:11.5px;">
         <div><span style="color:#6a6e80;">الاسم:</span> <strong>${data.empName||'—'}</strong></div>
@@ -2002,7 +2106,7 @@ function renderApprovalPage(data) {
         <div><span style="color:#6a6e80;">الوظيفة:</span> <strong>${data.empJob||'—'}</strong></div>
         <div><span style="color:#6a6e80;">الفرع:</span> <strong>${data.branch||'—'}</strong></div>
         <div><span style="color:#6a6e80;">القسم:</span> <strong>${data.dept||'—'}</strong></div>
-        <div><span style="color:#6a6e80;">تاريخ التسليم:</span> <strong>${data.date}</strong></div>
+        <div><span style="color:#6a6e80;">${isReturn?'تاريخ الإرجاع':'تاريخ التسليم'}:</span> <strong>${data.date}</strong></div>
       </div>
       <div style="border:1px solid #e2e4ec;border-radius:8px;overflow:hidden;margin-bottom:12px;">
         <table style="width:100%;border-collapse:collapse;">
@@ -2010,8 +2114,11 @@ function renderApprovalPage(data) {
           <tbody>${rows}</tbody>
         </table>
       </div>
+      ${isReturn && data.settNote ? `<div style="background:#f6f7fb;border:1px solid #e2e4ec;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:11px;color:#3d4152;"><strong>حالة العهدة عند الإرجاع:</strong> ${data.settNote}</div>` : ''}
       <div style="background:#fffaf0;border:1.5px solid #f0d8a8;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:10.5px;line-height:1.7;color:#3d3220;">
-        <strong>الإقرار:</strong> أقرّ أنا الموظف <strong>${data.empName||'.................'}</strong> باستلام العهدة الموضحة أعلاه بكامل بنودها وبحالة جيدة، وأتعهد بالمحافظة عليها وإعادتها عند الطلب.
+        <strong>الإقرار:</strong> ${isReturn
+          ? `أقرّ أنا الموظف <strong>${data.empName||'.................'}</strong> بأني قمت بإرجاع/تسليم العهدة الموضحة أعلاه إلى ${data.co||'الشركة'} بكامل بنودها، وتُخلى بذلك مسؤوليتي عنها اعتبارًا من تاريخه.`
+          : `أقرّ أنا الموظف <strong>${data.empName||'.................'}</strong> باستلام العهدة الموضحة أعلاه بكامل بنودها وبحالة جيدة، وأتعهد بالمحافظة عليها وإعادتها عند الطلب.`}
       </div>
       <div id="sigArea">
         <div style="font-size:12.5px;font-weight:800;color:#142a52;margin-bottom:8px;">✍️ التوقيع الإلكتروني</div>
@@ -2020,46 +2127,16 @@ function renderApprovalPage(data) {
           <button onclick="clearSig()" style="padding:6px 16px;background:#f3f4fa;border:1px solid #e2e4ec;border-radius:7px;cursor:pointer;font-family:'Tajawal',sans-serif;font-size:12px;">🗑️ مسح التوقيع</button>
           <div style="font-size:10.5px;color:#6a6e80;align-self:center;">ارسم توقيعك بالماوس أو الإصبع في الحقل أعلاه</div>
         </div>
-        <button onclick="submitApproval('${data.custId}','${data.token}')" style="width:100%;padding:14px;background:#E67700;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:15px;font-weight:800;cursor:pointer;letter-spacing:.3px;">✅ اعتمد وأوقّع — تأكيد الاستلام</button>
+        <button id="submitApprovalBtn" onclick="submitApproval('${data.custId}','${data.token}',${isReturn})" style="width:100%;padding:14px;background:#E67700;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:15px;font-weight:800;cursor:pointer;letter-spacing:.3px;">✅ اعتمد وأوقّع — تأكيد ${isReturn?'الإرجاع':'الاستلام'}</button>
       </div>
       <div id="approvedMsg" style="display:none;text-align:center;padding:20px;background:#e6f7f1;border:2px solid #0CA678;border-radius:10px;margin-top:12px;">
         <div style="font-size:24px;margin-bottom:8px;">✅</div>
         <div style="font-size:15px;font-weight:900;color:#0CA678;">تم الاعتماد بنجاح</div>
-        <div style="font-size:12px;color:#066a4c;margin-top:4px;">تم تسجيل موافقتك وتوقيعك الإلكتروني. يمكنك إغلاق هذه الصفحة.</div>
+        <div id="approvedMsgSub" style="font-size:12px;color:#066a4c;margin-top:4px;">تم تسجيل موافقتك وتوقيعك الإلكتروني. يمكنك إغلاق هذه الصفحة.</div>
       </div>
     </div>
-  </div>
-  <script>
-    const canvas = document.getElementById('sigCanvas');
-    const ctx = canvas.getContext('2d');
-    let drawing = false;
-    function getPos(e) {
-      const rect = canvas.getBoundingClientRect();
-      const scX = canvas.width / rect.width;
-      const scY = canvas.height / rect.height;
-      const src = e.touches ? e.touches[0] : e;
-      return { x: (src.clientX - rect.left) * scX, y: (src.clientY - rect.top) * scY };
-    }
-    canvas.addEventListener('mousedown', e => { drawing=true; const p=getPos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); });
-    canvas.addEventListener('mousemove', e => { if(!drawing) return; const p=getPos(e); ctx.lineWidth=2.5; ctx.lineCap='round'; ctx.strokeStyle='#142a52'; ctx.lineTo(p.x,p.y); ctx.stroke(); });
-    canvas.addEventListener('mouseup', ()=>drawing=false);
-    canvas.addEventListener('touchstart', e => { e.preventDefault(); drawing=true; const p=getPos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); },{passive:false});
-    canvas.addEventListener('touchmove', e => { e.preventDefault(); if(!drawing) return; const p=getPos(e); ctx.lineWidth=2.5; ctx.lineCap='round'; ctx.strokeStyle='#142a52'; ctx.lineTo(p.x,p.y); ctx.stroke(); },{passive:false});
-    canvas.addEventListener('touchend', ()=>drawing=false);
-    function clearSig() { ctx.clearRect(0,0,canvas.width,canvas.height); }
-    function submitApproval(custId, token) {
-      const isEmpty = !canvas.toDataURL().includes('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA');
-      if(isEmpty) { ctx.clearRect(0,0,canvas.width,canvas.height); const imgData=ctx.getImageData(0,0,canvas.width,canvas.height); const allZero=imgData.data.every((v,i)=>i%4===3?true:v===0); if(allZero){alert('يرجى رسم توقيعك أولاً'); return;} }
-      document.getElementById('sigArea').style.display='none';
-      document.getElementById('approvedMsg').style.display='block';
-      // حفظ التوقيع محلياً إن كان نفس المتصفح
-      try {
-        const db = JSON.parse(localStorage.getItem('cDB3')||'{}');
-        const c = (db.custodies||[]).find(x=>x.id===custId && x.approvalToken===token);
-        if(c) { c.approvalStatus='معتمَد'; c.approvalDate=new Date().toISOString().slice(0,10); c.approvalSig=canvas.toDataURL('image/png',0.5); localStorage.setItem('cDB3',JSON.stringify(db)); }
-      } catch(e) {}
-    }
-  <\/script>`;
+  </div>`;
+  initSigCanvas();
 }
 
 /* ══ SETTLE ══ */
