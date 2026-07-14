@@ -1959,14 +1959,15 @@ async function showApprovalModal(custId) {
   const shortId = custId.slice(-6)+Math.random().toString(36).slice(2,9);
   let approvalUrl;
   try{
-    const put = await fetch(SB_URL+'/rest/v1/payroll_data',{
+    const put = await fetchTOCustody(SB_URL+'/rest/v1/payroll_data',{
       method:'POST',
-      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
       body: JSON.stringify({data_key:'apr_'+shortId, data_value:approvalData})
-    });
-    if(!put.ok) throw new Error('upload failed');
+    }, 10000);
+    if(!put.ok) throw new Error('upload failed: '+put.status);
     approvalUrl = window.location.href.split('?')[0] + '?approve=' + shortId;
   }catch(err){
+    console.error('Approval link cloud upload error:', err);
     // احتياطي: لو فشل الرفع للسحابة، نرجع للطريقة القديمة (رابط طويل يحمل البيانات كاملة) بدل ما يفشل الرابط تماماً
     const payload = btoa(encodeURIComponent(JSON.stringify(approvalData)));
     approvalUrl = window.location.href.split('?')[0] + '?approve=' + encodeURIComponent(payload);
@@ -2001,13 +2002,21 @@ function checkApprovalMode() {
   // الروابط الجديدة القصيرة: معرّف قصير (~15 حرفاً) يُجلب منه البيانات من السحابة
   if (raw.length < 40) {
     document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#eef0f4;font-family:\'Tajawal\',Arial,sans-serif;color:#3B5BDB;font-weight:800;font-size:14px;">⏳ جارٍ تحميل بيانات العهدة...</div>';
-    fetch(SB_URL+'/rest/v1/payroll_data?data_key=eq.apr_'+encodeURIComponent(raw)+'&select=data_value',{headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}})
-      .then(r=>r.json())
+    fetchTOCustody(SB_URL+'/rest/v1/payroll_data?data_key=eq.apr_'+encodeURIComponent(raw)+'&select=data_value',{headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}}, 10000)
+      .then(r=>{
+        if(!r.ok){ console.error('Approval fetch HTTP error:', r.status, r.statusText); throw new Error('http_'+r.status); }
+        return r.json();
+      })
       .then(rows=>{
+        console.log('Approval rows fetched:', rows);
         if(rows && rows[0] && rows[0].data_value){ renderApprovalPage(rows[0].data_value); }
         else { document.body.innerHTML='<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#eef0f4;font-family:\'Tajawal\',Arial,sans-serif;color:#B52626;font-weight:700;font-size:13px;padding:20px;text-align:center;">⚠️ لم يتم العثور على بيانات العهدة. الرابط قد يكون غير صحيح أو منتهي الصلاحية.</div>'; }
       })
-      .catch(()=>{ document.body.innerHTML='<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#eef0f4;font-family:\'Tajawal\',Arial,sans-serif;color:#B52626;font-weight:700;font-size:13px;padding:20px;text-align:center;">⚠️ تعذّر تحميل بيانات العهدة. تحقق من اتصال الإنترنت وأعد فتح الرابط.</div>'; });
+      .catch(err=>{
+        console.error('Approval cloud fetch error:', err);
+        const isTimeout = err && err.message === 'انتهت المهلة';
+        document.body.innerHTML='<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#eef0f4;font-family:\'Tajawal\',Arial,sans-serif;color:#B52626;font-weight:700;font-size:13px;padding:20px;text-align:center;">⚠️ '+(isTimeout?'انتهت مهلة الاتصال بالسحابة (أكثر من 10 ثوانٍ). قد يكون هناك حظر CORS أو مشكلة اتصال — افتح "أدوات المطوّر ← Console/Network" لمعرفة السبب بدقة.':'تعذّر تحميل بيانات العهدة: '+(err&&err.message?err.message:'خطأ غير معروف')+'. تحقق من اتصال الإنترنت وأعد فتح الرابط.')+'</div>';
+      });
     return true;
   }
   // توافقاً مع الروابط القديمة الطويلة (بيانات مُرمّزة كاملة داخل الرابط)
@@ -2054,7 +2063,7 @@ async function submitApproval(custId, token, isReturn){
   // الحفظ الفعلي المهم: إرسال الاعتماد للسحابة حتى يصل للشركة بغض النظر عن جهاز الموظف
   let cloudOk=false;
   try{
-    const chk=await fetch(SB_URL+'/rest/v1/payroll_data?data_key=eq.'+CUSTODY_CLOUD_KEY+'&select=data_value',{headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}});
+    const chk=await fetchTOCustody(SB_URL+'/rest/v1/payroll_data?data_key=eq.'+CUSTODY_CLOUD_KEY+'&select=data_value',{headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}}, 10000);
     if(chk.ok){
       const rows=await chk.json();
       if(rows && rows[0] && rows[0].data_value && rows[0].data_value.db){
@@ -2062,11 +2071,11 @@ async function submitApproval(custId, token, isReturn){
         const c2=(cloudDB.custodies||[]).find(x=>x.id===custId && x.approvalToken===token);
         if(c2){
           c2.approvalStatus=isReturn?'إرجاع معتمَد':'معتمَد'; c2.approvalDate=nowDate; c2.approvalSig=sigData;
-          const put=await fetch(SB_URL+'/rest/v1/payroll_data?data_key=eq.'+CUSTODY_CLOUD_KEY,{
+          const put=await fetchTOCustody(SB_URL+'/rest/v1/payroll_data?data_key=eq.'+CUSTODY_CLOUD_KEY,{
             method:'PATCH',
             headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
             body:JSON.stringify({data_value:{db:cloudDB,_rev:Date.now()}})
-          });
+          }, 10000);
           cloudOk=put.ok;
         }
       }
