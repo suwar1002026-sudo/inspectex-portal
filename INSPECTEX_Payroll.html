@@ -7640,7 +7640,10 @@ async function cloudSyncOnStartup(){
     Object.values(MDB).forEach(function(m){
       if(m&&typeof m==='object')[0,1,2,3,4,5].forEach(function(i){localTotal+=(m[i]||[]).length;});
     });
-
+    // ⚠️ إصلاح حرج: لو كانت البيانات الحالية مجرد احتياط مؤقت من SEED_DB (وليست بيانات محلية
+    // حقيقية محفوظة فعلاً)، عاملها كجهاز فارغ تمامًا — تحقق من السحابة أولاً قبل أي شيء آخر،
+    // ولا تسمح لها بخداع منطق المقارنة أو التسبب برفعها فوق بيانات السحابة الحقيقية.
+    if(window.__mdbSeedFallback){ localTotal = 0; }
     // إذا كان الجهاز فارغاً (أو شبه فارغ) — تحقق من السحابة أولاً قبل الرفع
     // هذا يمنع ضياع البيانات عند فتح رابط/ملف جديد
     if(localTotal===0){
@@ -7728,6 +7731,7 @@ async function cloudSyncOnStartup(){
       if(ci) ci.innerHTML='<span style="color:#16a34a;font-size:11px">☁️ محفوظ سحابياً</span>';
     }
   }catch(e){ console.error('Sync error:',e); }
+  finally{ window.__mdbSeedFallback = false; } // لا تبقى العلامة مفعّلة لبقية الجلسة بعد اكتمال الفحص
 }
 
 // Manual cloud restore — only when user explicitly clicks (not automatic)
@@ -7913,7 +7917,13 @@ try{
   // CRITICAL: if localStorage has FEWER than the file's SEED, the file wins.
   // This prevents stale/corrupted localStorage (e.g. 4 employees) from sticking.
   if(_t < _seedT && _seedT>0){
-    // Rebuild current month from SEED_DB
+    // ⚠️ إصلاح حرج (يوليو ٢٠٢٦): هذا الاحتياط كان يكتب مباشرة في localStorage، مما "يُقنع"
+    // منطق المزامنة السحابية لاحقاً بأن الجهاز يملك بيانات حقيقية (19 موظف من SEED_DB بدل
+    // 67 موظف فعليين بالسحابة)، فيتجنب استرجاع السحابة، وأحياناً يرفع هذه النسخة الناقصة
+    // فوق بيانات السحابة الحقيقية! الآن: نعرض SEED_DB مؤقتاً على الشاشة فقط (بدون حفظه في
+    // localStorage) ونرفع علامة __mdbSeedFallback لتُجبر cloudSyncOnStartup() على التحقق
+    // من السحابة أولاً قبل أي شيء — تماماً كما لو كان الجهاز فارغاً تماماً.
+    window.__mdbSeedFallback = true;
     MDB={};
     var _k=(new Date().getFullYear())+'-'+(new Date().getMonth()+1);
     MDB[_k]={_t:1};
@@ -7922,7 +7932,7 @@ try{
         MDB[_k][_i]=SEED_DB[_i].map(function(e){return Object.assign({},e,{ot:0,com:0,diff:0,adv:0,ded:0,paid:false});});
       }
     }
-    try{localStorage.setItem('inspectex_mdb',JSON.stringify(MDB));}catch(e){}
+    // لا نكتب في localStorage هنا إطلاقاً — ننتظر تأكيد cloudSyncOnStartup() أولاً
   }
 }catch(e){}
 // Sync SEED_DB: if localStorage has more employees than SEED_DB, update it
@@ -7967,6 +7977,12 @@ loadMonth();
 renderApproverWidget();
 render();
 initSecurity();
+// ⚠️ إصلاح حرج جداً: هذه الدالة (فحص السحابة عند بدء التشغيل واسترجاع البيانات تلقائياً
+// إذا كان الجهاز فارغاً أو يحمل نسخة أقدم) كانت مكتوبة بالكامل لكن غير مُستدعاة من أي مكان
+// في الملف — يعني الاسترجاع التلقائي من السحابة لم يكن يعمل إطلاقاً منذ البداية. أي جهاز
+// جديد أو تمت تصفية بياناته المحلية كان يبقى عالقاً على بيانات SEED_DB الأساسية للأبد بدل
+// استرجاع البيانات الحقيقية من السحابة.
+if(typeof cloudSyncOnStartup==='function'){ cloudSyncOnStartup(); }
 
 // شارة الإصدار الديناميكية (اضغط عليها لفرض تحديث النسخة وتجاوز الكاش)
 try{
