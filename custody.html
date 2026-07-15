@@ -1193,7 +1193,15 @@ function allCats() {
 }
 
 function save() {
-  try { localStorage.setItem('cDB3', JSON.stringify(DB)); showASV(); } catch(e) {}
+  try {
+    localStorage.setItem('cDB3', JSON.stringify(DB));
+    // ⚡ إصلاح: سجّل رقم نسخة محلي دائم فور أي تعديل (حذف/إضافة/تسوية...)
+    // حتى لا تستطيع مزامنة السحابة عند إعادة فتح الصفحة استبدال هذا التعديل بنسخة أقدم
+    const localRev = Date.now();
+    window._custodyLastRev = localRev;
+    localStorage.setItem('custody_last_rev', String(localRev));
+    showASV();
+  } catch(e) {}
   cloudSaveDebouncedCustody();
 }
 function load() {
@@ -1237,8 +1245,9 @@ function fetchTOCustody(url, opts, ms) {
 
 async function cloudSaveCustody() {
   try {
-    const bundle = { db: DB, _rev: Date.now() };
-    window._custodyLastRev = bundle._rev;
+    // استخدم رقم النسخة المحلي الدائم إن وُجد (سُجّل عند آخر تعديل فعلي)
+    const _rev = window._custodyLastRev || Date.now();
+    const bundle = { db: DB, _rev: _rev };
     const payload = { data_key: CUSTODY_CLOUD_KEY, data_value: bundle };
     const chk = await fetchTOCustody(SB_URL + '/rest/v1/payroll_data?data_key=eq.' + CUSTODY_CLOUD_KEY + '&select=id', {
       headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
@@ -1280,6 +1289,11 @@ async function cloudLoadCustody() {
 
 // عند بدء التشغيل: قارن السحابة بالمحلي واستخدم الأحدث/الأكبر تلقائيًا
 async function cloudSyncOnStartupCustody() {
+  // ⚡ إصلاح: اقرأ آخر رقم نسخة محلي محفوظ بشكل دائم (وليس القيمة المؤقتة اللي تصفر مع كل تحديث صفحة)
+  try {
+    const savedRev = localStorage.getItem('custody_last_rev');
+    if (savedRev) window._custodyLastRev = parseInt(savedRev, 10) || 0;
+  } catch(e) {}
   const cloud = await cloudLoadCustody();
   if (!cloud || !cloud.db) {
     // لا يوجد شيء بالسحابة بعد — ارفع النسخة المحلية الحالية لتصبح هي المرجع
@@ -1290,16 +1304,17 @@ async function cloudSyncOnStartupCustody() {
   const cloudCount = (cloud.db.employees || []).length + (cloud.db.custodies || []).length;
   const localRev = window._custodyLastRev || 0;
   const cloudRev = cloud._rev || 0;
-  // استخدم النسخة الأحدث زمنيًا، وإن تساوت استخدم الأكبر بيانات
-  if (cloudRev > localRev || (cloudRev === localRev && cloudCount > localCount)) {
+  // استخدم النسخة الأحدث زمنيًا فقط. لو النسخة المحلية أحدث أو تساوي، لا تستبدلها أبداً
+  // (تم إلغاء شرط "الأكبر بيانات" لأنه كان يسمح بإرجاع عناصر محذوفة لو كانت نسخة السحابة أكبر عدداً رغم كونها أقدم)
+  if (cloudRev > localRev) {
     DB = cloud.db;
     if (!DB.warehouse) DB.warehouse = [];
     if (!DB.devices) DB.devices = [];
-    try { localStorage.setItem('cDB3', JSON.stringify(DB)); } catch (e) {}
+    try { localStorage.setItem('cDB3', JSON.stringify(DB)); localStorage.setItem('custody_last_rev', String(cloudRev)); window._custodyLastRev = cloudRev; } catch (e) {}
     if (typeof renderAll === 'function' && document.getElementById('app') && !document.getElementById('app').classList.contains('hidden')) {
       try { renderAll(); } catch (e) {}
     }
-  } else if (localCount > cloudCount) {
+  } else if (localRev > cloudRev) {
     cloudSaveCustody();
   }
 }
