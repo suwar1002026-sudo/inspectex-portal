@@ -7714,6 +7714,26 @@ function cloudSaveDebounced(){
 
 // Sync on startup: compare cloud vs local, use whichever has more data
 async function cloudSyncOnStartup(){
+  function fetchTO(url,opts,ms){
+    return Promise.race([
+      fetch(url,opts),
+      new Promise(function(_,rej){setTimeout(function(){rej(new Error('timeout'));},ms||8000);})
+    ]);
+  }
+  function showHardConnFail(){
+    if(document.getElementById('cloudHardFail'))return;
+    var d=document.createElement('div');
+    d.id='cloudHardFail';
+    d.setAttribute('dir','rtl');
+    d.style.cssText='position:fixed;inset:0;z-index:999999;background:rgba(10,20,40,.94);display:flex;align-items:center;justify-content:center;padding:20px';
+    d.innerHTML='<div style="background:#fff;border-radius:16px;padding:28px;max-width:420px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.4)">'
+      +'<div style="font-size:40px;margin-bottom:10px">⚠️</div>'
+      +'<div style="font-weight:900;font-size:16px;color:#0d1b35;margin-bottom:10px">تعذّر الاتصال بالسحابة</div>'
+      +'<div style="font-size:13px;color:#64748b;line-height:1.8;margin-bottom:18px">لم نتمكن من التأكد من آخر نسخة لبياناتك. <strong style="color:#dc2626">لا تُدخل أو تعدّل أي بيانات الآن</strong> — قد تكون البيانات المعروضة قديمة أو غير مكتملة.<br>تحقق من اتصال الإنترنت ثم أعد المحاولة.</div>'
+      +'<button onclick="document.getElementById(\'cloudHardFail\').remove();cloudSyncOnStartup();" style="background:#0d1b35;color:#fff;border:0;border-radius:10px;padding:12px 28px;font-size:13px;font-weight:800;cursor:pointer;font-family:Cairo,sans-serif">🔄 إعادة المحاولة الآن</button>'
+      +'</div>';
+    document.body.appendChild(d);
+  }
   try{
     // احسب كم موظف لدينا محلياً
     var localTotal=0;
@@ -7724,43 +7744,47 @@ async function cloudSyncOnStartup(){
     // إذا كان الجهاز فارغاً (أو شبه فارغ) — تحقق من السحابة أولاً قبل الرفع
     // هذا يمنع ضياع البيانات عند فتح رابط/ملف جديد
     if(localTotal===0){
-      try{
-        // مهلة زمنية 8 ثوانٍ — إذا لم ترد السحابة، أكمل بدل التجمّد
-        function fetchTO(url,opts,ms){
-          return Promise.race([
-            fetch(url,opts),
-            new Promise(function(_,rej){setTimeout(function(){rej(new Error('timeout'));},ms||8000);})
-          ]);
-        }
-        var chk = await fetchTO(SB_URL+'/rest/v1/payroll_data?data_key=eq.main_mdb&select=data_value',{
-          headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}
-        }, 8000);
-        if(chk.ok){
-          var rows = await chk.json();
-          if(rows && rows.length && rows[0].data_value){
-            var dv = rows[0].data_value;
-            // احسب كم موظف في السحابة
-            var cloudTotal=0;
-            var cmdb = dv.mdb || dv;
-            Object.values(cmdb||{}).forEach(function(m){
-              if(m&&typeof m==='object')[0,1,2,3,4,5].forEach(function(i){cloudTotal+=(m[i]||[]).length;});
-            });
-            // السحابة فيها بيانات والجهاز فارغ — نزّلها تلقائياً (إنقاذ البيانات)
-            if(cloudTotal>0){
-              var ci0=document.getElementById('cloudStatus');
-              if(ci0) ci0.innerHTML='<span style="color:#0891b2;font-size:11px">☁️ جاري استرجاع بياناتك...</span>';
-              await cloudLoadMDB();
-              try{ if(dv._rev) localStorage.setItem('inspectex_last_rev', String(dv._rev)); }catch(e){}
-              if(typeof loadMonth==='function') loadMonth();
-              if(typeof render==='function') render();
-              var ci1=document.getElementById('cloudStatus');
-              if(ci1) ci1.innerHTML='<span style="color:#16a34a;font-size:11px">☁️ تم الاسترجاع</span>';
-              if(typeof notify==='function') notify('☁️ تم استرجاع بياناتك من السحابة تلقائياً — لا تقلق، لم يضِع شيء');
-              return; // لا ترفع الفراغ فوق بيانات السحابة
+      var ok=false, lastErr=null;
+      for(var attempt=1;attempt<=3 && !ok;attempt++){
+        try{
+          var chk = await fetchTO(SB_URL+'/rest/v1/payroll_data?data_key=eq.main_mdb&select=data_value',{
+            headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}
+          }, 8000);
+          if(chk.ok){
+            ok=true;
+            var rows = await chk.json();
+            if(rows && rows.length && rows[0].data_value){
+              var dv = rows[0].data_value;
+              // احسب كم موظف في السحابة
+              var cloudTotal=0;
+              var cmdb = dv.mdb || dv;
+              Object.values(cmdb||{}).forEach(function(m){
+                if(m&&typeof m==='object')[0,1,2,3,4,5].forEach(function(i){cloudTotal+=(m[i]||[]).length;});
+              });
+              // السحابة فيها بيانات والجهاز فارغ — نزّلها تلقائياً (إنقاذ البيانات)
+              if(cloudTotal>0){
+                var ci0=document.getElementById('cloudStatus');
+                if(ci0) ci0.innerHTML='<span style="color:#0891b2;font-size:11px">☁️ جاري استرجاع بياناتك...</span>';
+                await cloudLoadMDB();
+                try{ if(dv._rev) localStorage.setItem('inspectex_last_rev', String(dv._rev)); }catch(e){}
+                if(typeof loadMonth==='function') loadMonth();
+                if(typeof render==='function') render();
+                var ci1=document.getElementById('cloudStatus');
+                if(ci1) ci1.innerHTML='<span style="color:#16a34a;font-size:11px">☁️ تم الاسترجاع</span>';
+                if(typeof notify==='function') notify('☁️ تم استرجاع بياناتك من السحابة تلقائياً — لا تقلق، لم يضِع شيء');
+                return; // لا ترفع الفراغ فوق بيانات السحابة
+              }
             }
-          }
-        }
-      }catch(e){ console.error('Cloud check error:',e); }
+          } else { lastErr=new Error('http '+chk.status); }
+        }catch(e){ lastErr=e; ok=false; if(attempt<3){ await new Promise(function(r){setTimeout(r,1200);}); } }
+      }
+      if(!ok){
+        // ⚡ إصلاح: فشل كل المحاولات — لا نكمل بصمت على البيانات الافتراضية بالكود
+        // بدل كذا نوقف الاستخدام ونحذّر بوضوح ونتيح إعادة المحاولة
+        console.error('Cloud check error (all retries failed):', lastErr);
+        showHardConnFail();
+        return;
+      }
     }
 
     // الجهاز فيه بيانات — قارن "التاريخ" الحقيقي مع السحابة (مو مجرد عدد السجلات،

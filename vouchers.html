@@ -2860,9 +2860,13 @@ function renderVoucherDoc(v){
   }
   // Sent - waiting for CEO
   if(v.ceoStatus==='sent'){
-    html += '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;margin-top:8px;display:flex;align-items:center;gap:8px">'
+    html += '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;margin-top:8px">'
+      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:9px">'
       +'<i class="ti ti-clock" style="color:#b45309;font-size:18px"></i>'
       +'<span style="font-size:12px;font-weight:700;color:#b45309">⏳ تم الترحيل للبوابة — بانتظار اعتماد الرئيس التنفيذي</span>'
+      +'</div>'
+      +'<button onclick="recallVoucherForEdit('+v.id+')" style="width:100%;background:#fff;color:#c2410c;border:1.5px solid #fed7aa;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;font-family:Cairo,sans-serif"><i class="ti ti-arrow-back-up"></i> استرجاع الأمر للمراجعة أو التعديل</button>'
+      +'<div style="font-size:10px;color:#92400e;margin-top:6px">استخدمه فقط لو اكتشفت خطأ قبل اعتماد الرئيس — سيلغي أي اعتمادات جزئية سبقت ويعيد الأمر لوضع المسودة.</div>'
       +'</div>';
   }
   // Approved banner
@@ -6415,6 +6419,26 @@ function openFromArchive(id){
   setTimeout(function(){ selectVoucher(id); },100);
 }
 
+
+// ── recallVoucherForEdit — استرجاع أمر من "بانتظار الاعتماد" لوضع المسودة قبل قرار الرئيس ──
+function recallVoucherForEdit(id){
+  var v=vouchers.find(function(x){return x.id===id;});
+  if(!v) return;
+  if(!confirm('استرجاع الأمر '+v.vNo+' من قائمة الاعتماد لمراجعته أو تعديله؟\nسيُلغى أي اعتماد جزئي سبق وحصل عليه، وترجع حالته لمسودة.')) return;
+  v.approvals={};
+  v.ceoStatus='pending';
+  delete v.ceoApprovedAt;
+  delete v.ceoRejectedAt;
+  delete v.rejectReason;
+  saveData();
+  sbPushStatus(id,'pending',{approvals:{}, ceoApprovedAt:null, ceoRejectedAt:null, rejectReason:null});
+  refreshArchiveIfActive();
+  if(typeof renderVList==='function') renderVList();
+  if(currentVoucher && currentVoucher.id===id){ currentVoucher=v; renderVoucherDoc(v); }
+  showToast('↩️ تم استرجاع '+v.vNo+' — يمكنك الآن تعديله قبل إعادة الترحيل');
+  addNotif('↩️ استرجاع أمر','تم استرجاع '+v.vNo+' — '+v.ben+' من قائمة الاعتماد للمراجعة','ti-arrow-back-up','#fff7ed','#c2410c');
+}
+window.recallVoucherForEdit=recallVoucherForEdit;
 
 function undoVoucherApproval(id){
   var v=vouchers.find(function(x){return x.id===id;});
