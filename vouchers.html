@@ -2897,9 +2897,13 @@ function renderVoucherDoc(v){
   }
   // Approved banner
   if(v.ceoStatus==='approved' && !v.paid){
-    html += '<div style="background:#f0fdfa;border:1px solid #99f6e4;border-radius:8px;padding:10px 14px;margin-top:8px;display:flex;align-items:center;gap:8px">'
+    html += '<div style="background:#f0fdfa;border:1px solid #99f6e4;border-radius:8px;padding:10px 14px;margin-top:8px">'
+      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:9px">'
       +'<i class="ti ti-circle-check" style="color:#0f766e;font-size:18px"></i>'
       +'<span style="font-size:12px;font-weight:700;color:#0f766e">✅ اعتمده الرئيس التنفيذي — جاهز للصرف. اضغط "تم الصرف" أعلاه.</span>'
+      +'</div>'
+      +'<button onclick="recallVoucherForEdit('+v.id+')" style="width:100%;background:#fff;color:#c2410c;border:1.5px solid #fed7aa;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;font-family:Cairo,sans-serif"><i class="ti ti-arrow-back-up"></i> إلغاء الاعتماد — تم اعتماده بالخطأ</button>'
+      +'<div style="font-size:10px;color:#0f766e;margin-top:6px">يلغي كل الاعتمادات ويعيد الأمر لوضع المسودة القابلة للتعديل، ثم يمكنك ترحيله من جديد للاعتماد الصحيح.</div>'
       +'</div>';
   }
   // Rejected banner
@@ -6485,8 +6489,9 @@ function roleReturnForEdit(id){
   if(!v) return;
   var roleId=window._currentRole||'ceo';
   var role=getRole(roleId);
-  var note=prompt('سبب الإرجاع للتعديل (اختياري، يظهر لصاحب الأمر):','') || '';
-  if(note===null) return;
+  var note=prompt('سبب الإرجاع للتعديل (اختياري، يظهر لصاحب الأمر):','');
+  if(note===null) return; // ضغط إلغاء
+  note = note || '';
   v.approvals={};
   v.ceoStatus='pending';
   delete v.ceoApprovedAt;
@@ -6497,6 +6502,8 @@ function roleReturnForEdit(id){
   sbPushStatus(id,'pending',{approvals:{}, ceoApprovedAt:null, ceoRejectedAt:null, rejectReason:null, revisionRequest:v.revisionRequest});
   refreshArchiveIfActive();
   var _dm=document.getElementById('ceo-details-modal'); if(_dm) _dm.remove();
+  if(typeof renderVList==='function') renderVList();
+  if(typeof currentVoucher!=='undefined' && currentVoucher && currentVoucher.id===id){ currentVoucher=v; if(typeof renderVoucherDoc==='function') renderVoucherDoc(v); }
   showToast('↩️ تم رد '+v.vNo+' لصاحبه للتعديل');
   addNotif('↩️ طلب تعديل','طلب '+(role?role.title:roleId)+' تعديل '+v.vNo+' — '+v.ben+(note?': '+note:''),'ti-arrow-back-up','#fff7ed','#c2410c');
   if(document.getElementById('page-ceo-portal') && document.getElementById('page-ceo-portal').classList.contains('active')) renderCEOPortal();
