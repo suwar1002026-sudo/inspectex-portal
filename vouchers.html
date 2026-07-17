@@ -2724,7 +2724,7 @@ function selectVoucher(id){
     ceoBtn.style.background='#0d9488';
     ceoBtn.disabled=true;ceoBtn.style.opacity='.7';
     ceoBtn.title='معتمد';
-  }} else if(currentVoucher.ceoStatus==='sent'){
+  } else if(currentVoucher.ceoStatus==='sent'){
     ceoBtn.innerHTML='<i class="ti ti-send" style="font-size:12px"></i>';
     ceoBtn.style.background='#0369a1';
     ceoBtn.disabled=false;ceoBtn.style.opacity='1';
@@ -2734,6 +2734,7 @@ function selectVoucher(id){
     ceoBtn.style.background='#334155';
     ceoBtn.disabled=false;ceoBtn.style.opacity='1';
     ceoBtn.title='إرسال للرئيس التنفيذي';
+  }
   }
 }
 function renderVoucherDoc(v){
