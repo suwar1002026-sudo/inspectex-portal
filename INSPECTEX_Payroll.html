@@ -2178,20 +2178,39 @@ function copyFromPrevMonth(){
 // =========== UTILS ===========
 const fmt=n=>Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2,useGrouping:true});
 const fmtN=n=>Number(Math.round(n||0)).toLocaleString('en-US');
-function calc(e){
+function calc(e, ctxYr, ctxMon){
   // salary = TOTAL inclusive (basic + housing + transport)
   // hous/trans/food/oallow are for DISPLAY breakdown only — NOT added to total
-  const total=+e.salary||0;
+  const cy = ctxYr||yr, cm = ctxMon||mon;
+  let total=+e.salary||0;
+  const arrears=(+e.arrears||0); // متأخرات مُرحّلة من شهر سابق لم يُصرف
+  const monthly_vars=(+e.ot||0)+(+e.com||0)+(+e.diff||0)+arrears;
+  let food=+e.food||0;
+  let oallow=+e.oallow||0;
+  // ⚡ تناسب الراتب مع أيام العمل الفعلية إذا كان تاريخ الالتحاق داخل هذا الشهر بالذات
+  let prorated=false, proDays=0, proTotal=0;
+  if(e.date){
+    const parts=String(e.date).split('/');
+    if(parts.length===3){
+      const jDay=+parts[0], jMon=+parts[1], jYr=+parts[2];
+      if(jYr===cy && jMon===cm && jDay>1){
+        const daysInMonth=new Date(cy,cm,0).getDate();
+        const daysWorked=Math.max(0, daysInMonth - jDay + 1);
+        const factor=daysWorked/daysInMonth;
+        proTotal=total;
+        total=Math.round(total*factor*100)/100;
+        food=Math.round(food*factor*100)/100;
+        oallow=Math.round(oallow*factor*100)/100;
+        prorated=true; proDays=daysWorked;
+      }
+    }
+  }
   const basic=Math.round(total/1.35*100)/100;
   const hous=e.hous!==undefined&&+e.hous>0 ? +e.hous : Math.round(basic*0.25*100)/100;
   const trans=e.trans!==undefined&&+e.trans>0 ? +e.trans : Math.round(basic*0.10*100)/100;
-  const food=+e.food||0;
-  const oallow=+e.oallow||0;
-  const arrears=(+e.arrears||0); // متأخرات مُرحّلة من شهر سابق لم يُصرف
-  const monthly_vars=(+e.ot||0)+(+e.com||0)+(+e.diff||0)+arrears;
   const g=total+food+oallow+monthly_vars; // salary already includes basic+hous+trans
   const d=(+e.adv||0)+(+e.ins||0)+(+e.ded||0);
-  return{g,d,n:g-d,base:basic,hous,trans,total,monthly_vars,arrears};
+  return{g,d,n:g-d,base:basic,hous,trans,total,monthly_vars,arrears,prorated,proDays,proTotal};
 }
 function catT(i){let g=0,d=0,n=0,p=0,pc=0;(DB[i]||[]).forEach(e=>{const c=calc(e);g+=c.g;d+=c.d;n+=c.n;if(e.paid){p+=c.n;pc++;}});return{g,d,n,p,pc,cnt:(DB[i]||[]).length};}
 function allT(){let g=0,d=0,n=0,cnt=0,pc=0;for(let i=0;i<NCAT;i++){const t=catT(i);g+=t.g;d+=t.d;n+=t.n;cnt+=t.cnt;pc+=t.pc;}return{g,d,n,cnt,pc};}
@@ -2296,7 +2315,7 @@ function renderPayroll(mc){
       const cat=e._c!==undefined?e._c:0;
       h+=`<tr style="border-bottom:.5px solid #f1f5f9;cursor:pointer" onclick="openSlip(${cat},${e.id})">
         <td style="text-align:center;color:#94a3b8;font-size:11px;padding:6px 5px">${i+1}</td>
-        <td style="padding:6px 8px;font-weight:700;text-align:right">${e.name}${(function(){var a=_ixArrearsMonths(e.name,e.job);return a.months.length>1?`<div style="font-size:9px;color:#dc2626;font-weight:600;margin-top:2px">⏳ متأخر عن: ${a.months.map(m=>m.label).join('، ')} (${a.months.length} أشهر)</div>`:'';})()}</td>
+        <td style="padding:6px 8px;font-weight:700;text-align:right">${e.name}${c.prorated?`<div style="font-size:9px;color:#0891b2;font-weight:700;margin-top:2px">⏱️ محسوب بالتناسب — ${c.proDays} يوم عمل من ${fmt(c.proTotal)} (التحق ${e.date})</div>`:''}${(function(){var a=_ixArrearsMonths(e.name,e.job);return a.months.length>1?`<div style="font-size:9px;color:#dc2626;font-weight:600;margin-top:2px">⏳ متأخر عن: ${a.months.map(m=>m.label).join('، ')} (${a.months.length} أشهر)</div>`:'';})()}</td>
         <td style="text-align:center;padding:6px 5px"><span style="background:${CBG[cat]};color:${CCOLORS[cat]};padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;white-space:nowrap">${CNAMES[cat]}</span></td>
         <td style="text-align:center;padding:6px 5px;font-size:11px;color:#475569">${e.job}</td>
         <td style="text-align:center;padding:6px 5px;color:var(--blue);font-weight:700">${fmt(c.g)}</td>
@@ -3854,11 +3873,11 @@ function confirmMoveEmp(){
   notify('✓ تم نقل '+empName+' إلى '+CNAMES[newCat]);
 }
 function openMonthsComparison(){ om('moComp'); renderMonthsComparison(); }
-function totalsForMonthEntry(mm){
+function totalsForMonthEntry(mm, ctxYr, ctxMon){
   let g=0,n=0,cnt=0,pc=0,pNet=0,uNet=0;
   if(!mm) return {g,n,cnt,pc,pNet,uNet};
   for(let i=0;i<NCAT;i++){
-    (mm[i]||[]).forEach(e=>{ const c=calc(e); g+=c.g; n+=c.n; cnt++; if(e.paid){ pc++; pNet+=c.n; } else { uNet+=c.n; } });
+    (mm[i]||[]).forEach(e=>{ const c=calc(e,ctxYr,ctxMon); g+=c.g; n+=c.n; cnt++; if(e.paid){ pc++; pNet+=c.n; } else { uNet+=c.n; } });
   }
   return {g,n,cnt,pc,pNet,uNet};
 }
@@ -3867,7 +3886,7 @@ function renderMonthsComparison(){
   if(!el)return;
   const keys=Object.keys(MDB).filter(k=>typeof monthHasData==='function'?monthHasData(MDB[k]):true).sort();
   if(!keys.length){ el.innerHTML='<div style="text-align:center;padding:40px;color:#94a3b8">لا توجد بيانات كافية للمقارنة بعد</div>'; return; }
-  const rows=keys.map(k=>{ const parts=k.split('-'); const ky=+parts[0],km=+parts[1]; const t=totalsForMonthEntry(MDB[k]); return {k,ky,km,...t}; });
+  const rows=keys.map(k=>{ const parts=k.split('-'); const ky=+parts[0],km=+parts[1]; const t=totalsForMonthEntry(MDB[k],ky,km); return {k,ky,km,...t}; });
   const grand={cnt:0,n:0,pNet:0,uNet:0};
   rows.forEach(r=>{ grand.cnt+=r.cnt; grand.n+=r.n; grand.pNet+=r.pNet; grand.uNet+=r.uNet; });
   let html='<div style="background:#f8fafc;border-radius:10px;padding:12px 16px;margin-bottom:16px;display:flex;gap:22px;flex-wrap:wrap;font-size:12px">'+
