@@ -605,6 +605,9 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);direc
   font-size:14px;font-family:'Cairo',sans-serif;outline:none;transition:all .2s}
 .cpo-input::placeholder{color:rgba(255,255,255,0.2)}
 .cpo-input:focus{border-color:#B8860B;background:rgba(255,255,255,0.1)}
+/* ⚡ إصلاح: قائمة الاختيار المنسدلة (option) تُرسم بخلفية بيضاء من المتصفح
+   بغض النظر عن CSS الصفحة، فنحتاج لون نص داكن صريح لها كي تكون مقروءة */
+select.cpo-input option{color:#0f172a;background:#fff}
 .cpo-btn{width:100%;padding:12px;margin-top:16px;
   background:linear-gradient(135deg,#d4a017,#9a6e0a);
   color:#0d1b2a;border:none;border-radius:9px;
@@ -4576,7 +4579,14 @@ var defaultRoles = [
 function getRoles(){
   try{
     var r=JSON.parse(localStorage.getItem(APPROVAL_ROLES_KEY)||'null');
-    if(r && r.length===4) return r;
+    if(r && r.length>=4){
+      // ⚡ ادمج أي دور جديد أُضيف للنظام لاحقاً (مثل رئيس الحسابات) وغير موجود بالنسخة المحفوظة قديماً
+      var existingIds=r.map(function(x){return x.id;});
+      defaultRoles.forEach(function(dr){
+        if(existingIds.indexOf(dr.id)===-1) r.push(JSON.parse(JSON.stringify(dr)));
+      });
+      return r;
+    }
   }catch(e){}
   return JSON.parse(JSON.stringify(defaultRoles));
 }
@@ -5430,8 +5440,7 @@ function ceoPortalLogin(){
   var role=getRole(roleId);
   if(!role){ showPortalErr('دور غير صحيح'); return; }
   if(!role.enabled){ showPortalErr('هذا الدور موقوف حالياً'); return; }
-  // كلمة المرور: كلمة الدور أو 2026 للرئيس (توافق)
-  var ok = (pass===role.pass) || (roleId==='ceo' && pass==='2026');
+  var ok = (pass===role.pass);
   if(ok){
     _ceoLoggedIn=true;
     window._currentRole=roleId;
