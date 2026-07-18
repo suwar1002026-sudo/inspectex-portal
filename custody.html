@@ -2055,6 +2055,31 @@ function _getSigPos(e){
 function initSigCanvas(){
   _sigCanvas=document.getElementById('sigCanvas'); if(!_sigCanvas) return;
   _sigCtx=_sigCanvas.getContext('2d'); _sigDrawing=false;
+  // ⚡ إصلاح: استخدام Pointer Events (المعيار الأحدث) كطريقة أساسية للرسم —
+  // يوحّد الماوس واللمس والقلم بحدث واحد موثوق، ويحل مشاكل عدم استجابة اللمس
+  // على بعض متصفحات الجوال (خصوصاً Safari بالآيفون) اللي تحصل مع touchstart/mousedown المنفصلة
+  if(window.PointerEvent){
+    _sigCanvas.style.touchAction='none';
+    _sigCanvas.addEventListener('pointerdown', e=>{
+      e.preventDefault();
+      _sigDrawing=true;
+      try{ _sigCanvas.setPointerCapture(e.pointerId); }catch(_e){}
+      const p=_getSigPos(e);
+      _sigCtx.beginPath(); _sigCtx.moveTo(p.x,p.y);
+    });
+    _sigCanvas.addEventListener('pointermove', e=>{
+      if(!_sigDrawing) return;
+      e.preventDefault();
+      const p=_getSigPos(e);
+      _sigCtx.lineWidth=2.5; _sigCtx.lineCap='round'; _sigCtx.strokeStyle='#142a52';
+      _sigCtx.lineTo(p.x,p.y); _sigCtx.stroke();
+    });
+    ['pointerup','pointercancel','pointerleave'].forEach(ev=>{
+      _sigCanvas.addEventListener(ev, ()=>{ _sigDrawing=false; });
+    });
+    return; // لا نضيف مستمعات mouse/touch القديمة إذا كانت Pointer Events مدعومة (تفادي تكرار الرسم)
+  }
+  // احتياط للمتصفحات القديمة جداً التي لا تدعم Pointer Events
   _sigCanvas.addEventListener('mousedown', e=>{ _sigDrawing=true; const p=_getSigPos(e); _sigCtx.beginPath(); _sigCtx.moveTo(p.x,p.y); });
   _sigCanvas.addEventListener('mousemove', e=>{ if(!_sigDrawing) return; const p=_getSigPos(e); _sigCtx.lineWidth=2.5; _sigCtx.lineCap='round'; _sigCtx.strokeStyle='#142a52'; _sigCtx.lineTo(p.x,p.y); _sigCtx.stroke(); });
   _sigCanvas.addEventListener('mouseup', ()=>_sigDrawing=false);
@@ -2147,7 +2172,7 @@ function renderApprovalPage(data) {
       </div>
       <div id="sigArea">
         <div style="font-size:12.5px;font-weight:800;color:#142a52;margin-bottom:8px;">✍️ التوقيع الإلكتروني</div>
-        <canvas id="sigCanvas" width="560" height="120" style="border:2px dashed #c7d2fe;border-radius:10px;background:#f8f9ff;touch-action:none;display:block;margin-bottom:8px;width:100%;"></canvas>
+        <canvas id="sigCanvas" width="560" height="120" style="border:2px dashed #c7d2fe;border-radius:10px;background:#f8f9ff;touch-action:none;display:block;margin-bottom:8px;width:100%;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;"></canvas>
         <div style="display:flex;gap:8px;margin-bottom:12px;">
           <button onclick="clearSig()" style="padding:6px 16px;background:#f3f4fa;border:1px solid #e2e4ec;border-radius:7px;cursor:pointer;font-family:'Tajawal',sans-serif;font-size:12px;">🗑️ مسح التوقيع</button>
           <div style="font-size:10.5px;color:#6a6e80;align-self:center;">ارسم توقيعك بالماوس أو الإصبع في الحقل أعلاه</div>

@@ -869,12 +869,12 @@ setInterval(function(){
 <div class="tabs no-print">
   <button class="tab" onclick="gv('home',this)"><i class="ti ti-layout-dashboard"></i> الرئيسية</button>
   <button class="tab" onclick="gv('all',this)"><i class="ti ti-table"></i> المسير الشامل <span class="tcnt" id="ca">66</span></button>
-  <button class="tab" onclick="gv('0',this)"><i class="ti ti-building-community"></i> مدد المباشر <span class="tcnt" id="c0">19</span></button>
-  <button class="tab" onclick="gv('1',this)"><i class="ti ti-buildings"></i> مدد الشركات <span class="tcnt" id="c1">9</span></button>
-  <button class="tab" onclick="gv('2',this)"><i class="ti ti-users-group"></i> غير المباشر <span class="tcnt" id="c2">24</span></button>
-  <button class="tab" onclick="gv('3',this)"><i class="ti ti-user-bolt"></i> المعاونون <span class="tcnt" id="c3">9</span></button>
-  <button class="tab" onclick="gv('4',this)"><i class="ti ti-helmet"></i> العمال <span class="tcnt" id="c4">4</span></button>
-  <button class="tab act" onclick="gv('5',this)"><i class="ti ti-star"></i> مسير خاص <span class="tcnt" id="c5">1</span></button>
+  <button class="tab" onclick="gv('0',this)"><i class="ti ti-building-community"></i> <span id="tabLbl0">مدد المباشر</span> <span class="tcnt" id="c0">19</span></button>
+  <button class="tab" onclick="gv('1',this)"><i class="ti ti-buildings"></i> <span id="tabLbl1">مدد الشركات</span> <span class="tcnt" id="c1">9</span></button>
+  <button class="tab" onclick="gv('2',this)"><i class="ti ti-users-group"></i> <span id="tabLbl2">غير المباشر</span> <span class="tcnt" id="c2">24</span></button>
+  <button class="tab" onclick="gv('3',this)"><i class="ti ti-user-bolt"></i> <span id="tabLbl3">المعاونون</span> <span class="tcnt" id="c3">9</span></button>
+  <button class="tab" onclick="gv('4',this)"><i class="ti ti-helmet"></i> <span id="tabLbl4">العمال</span> <span class="tcnt" id="c4">4</span></button>
+  <button class="tab act" onclick="gv('5',this)"><i class="ti ti-star"></i> <span id="tabLbl5">مسير خاص</span> <span class="tcnt" id="c5">1</span></button>
   <button class="tab" onclick="gv('approval',this)"><i class="ti ti-checkup-list"></i> الاعتمادات</button>
   <button class="tab" id="tabSent" onclick="gv('sent',this)"><i class="ti ti-brand-whatsapp"></i> الرسائل المرسلة</button>
   <button class="tab" onclick="gv('payroll',this)"><i class="ti ti-checklist"></i> ملخص الصرف <span class="tcnt" id="cpending" style="background: var(--green);">0</span></button>
@@ -1612,6 +1612,18 @@ setInterval(function(){
 </div>
 </div>
 
+<!-- ATTENDANCE MODAL -->
+<div class="ov" id="attM" onclick="if(event.target===this)cm('attM')">
+<div class="modal" style="width:640px;max-width:96vw;max-height:92vh;display:flex;flex-direction:column">
+  <div class="mh"><h2><i class="ti ti-calendar-time" style="color:#7c3aed"></i> الحضور والانصراف — <span id="attEmpName"></span></h2><button class="mhc" onclick="cm('attM')"><i class="ti ti-x"></i></button></div>
+  <div class="mb" style="padding:16px;overflow-y:auto" id="attBody"></div>
+  <div class="mf">
+    <button class="btn b-ghost" onclick="cm('attM')">إلغاء</button>
+    <button class="btn b-blue" onclick="saveAttendance()"><i class="ti ti-check"></i> حفظ الحضور</button>
+  </div>
+</div>
+</div>
+
 <!-- MOVE EMPLOYEE MODAL -->
 <div class="ov" id="moveEmpM" onclick="if(event.target===this)cm('moveEmpM')">
 <div class="modal" style="width:420px">
@@ -2127,7 +2139,7 @@ function loadMonth(){
     if(prev){
       m={};
       for(let i=0;i<NCAT;i++){
-        m[i]=(prev[i]||[]).map(e=>({...e,ot:0,com:0,diff:0,adv:0,ded:0,paid:false}));
+        m[i]=(prev[i]||[]).map(e=>({...e,ot:0,com:0,diff:0,adv:0,ded:0,paid:false,attendance:{}}));
       }
       MDB[mKey()]=m;
       try{localStorage.setItem('inspectex_mdb',JSON.stringify(MDB));}catch(e){}
@@ -2137,7 +2149,7 @@ function loadMonth(){
       for(var i=0;i<NCAT;i++){
         if(SEED_DB[i]&&SEED_DB[i].length>0){
           m[i]=SEED_DB[i].map(function(e){
-            return Object.assign({},e,{ot:0,com:0,diff:0,adv:0,ded:0,paid:false});
+            return Object.assign({},e,{ot:0,com:0,diff:0,adv:0,ded:0,paid:false,attendance:{}});
           });
         }
       }
@@ -2154,7 +2166,7 @@ function loadMonth(){
       var fm={_t:1};
       for(var j=0;j<NCAT;j++){
         if(SEED_DB[j]&&SEED_DB[j].length>0){
-          fm[j]=SEED_DB[j].map(function(e){return Object.assign({},e,{ot:0,com:0,diff:0,adv:0,ded:0,paid:false});});
+          fm[j]=SEED_DB[j].map(function(e){return Object.assign({},e,{ot:0,com:0,diff:0,adv:0,ded:0,paid:false,attendance:{}});});
           DB[j]=fm[j]; DB[j].forEach(function(e){e._c=j;});
         }
       }
@@ -2171,7 +2183,7 @@ function copyFromPrevMonth(){
   if(!src||![0,1,2,3,4,5].some(i=>(src[i]||[]).length)){notify('لا توجد بيانات في الشهر السابق ('+MNS[pmn-1]+' '+pyr+')');return;}
   if([0,1,2,3,4,5].some(i=>(DB[i]||[]).length)){ if(!confirm('سيُستبدل محتوى '+MNS[mon-1]+' '+yr+' ببيانات '+MNS[pmn-1]+' '+pyr+'. متابعة؟'))return; }
   else if(!confirm('نسخ موظفي '+MNS[pmn-1]+' '+pyr+' إلى '+MNS[mon-1]+' '+yr+'؟\nتُنسخ الرواتب الأساسية وتُصفّر القيم المتغيّرة (إضافي/عمولة/سلف).'))return;
-  for(let i=0;i<NCAT;i++){ DB[i]=(src[i]||[]).map(e=>({...e,ot:0,com:0,diff:0,adv:0,paid:false,_c:i})); }
+  for(let i=0;i<NCAT;i++){ DB[i]=(src[i]||[]).map(e=>({...e,ot:0,com:0,diff:0,adv:0,paid:false,attendance:{},_c:i})); }
   touchMonth();persistMonth(); render(); notify('✓ تم نسخ بيانات '+MNS[pmn-1]+' للشهر الحالي');
 }
 
@@ -2209,8 +2221,9 @@ function calc(e, ctxYr, ctxMon){
   const hous=e.hous!==undefined&&+e.hous>0 ? +e.hous : Math.round(basic*0.25*100)/100;
   const trans=e.trans!==undefined&&+e.trans>0 ? +e.trans : Math.round(basic*0.10*100)/100;
   const g=total+food+oallow+monthly_vars; // salary already includes basic+hous+trans
-  const d=(+e.adv||0)+(+e.ins||0)+(+e.ded||0);
-  return{g,d,n:g-d,base:basic,hous,trans,total,monthly_vars,arrears,prorated,proDays,proTotal};
+  const att=(typeof attendanceDeduction==='function')?attendanceDeduction(e,cy,cm):{ded:0,absentDays:0,lateDays:0};
+  const d=(+e.adv||0)+(+e.ins||0)+(+e.ded||0)+att.ded;
+  return{g,d,n:g-d,base:basic,hous,trans,total,monthly_vars,arrears,prorated,proDays,proTotal,attDed:att.ded,absentDays:att.absentDays,lateDays:att.lateDays};
 }
 function catT(i){let g=0,d=0,n=0,p=0,pc=0;(DB[i]||[]).forEach(e=>{const c=calc(e);g+=c.g;d+=c.d;n+=c.n;if(e.paid){p+=c.n;pc++;}});return{g,d,n,p,pc,cnt:(DB[i]||[]).length};}
 function allT(){let g=0,d=0,n=0,cnt=0,pc=0;for(let i=0;i<NCAT;i++){const t=catT(i);g+=t.g;d+=t.d;n+=t.n;cnt+=t.cnt;pc+=t.pc;}return{g,d,n,cnt,pc};}
@@ -2315,7 +2328,7 @@ function renderPayroll(mc){
       const cat=e._c!==undefined?e._c:0;
       h+=`<tr style="border-bottom:.5px solid #f1f5f9;cursor:pointer" onclick="openSlip(${cat},${e.id})">
         <td style="text-align:center;color:#94a3b8;font-size:11px;padding:6px 5px">${i+1}</td>
-        <td style="padding:6px 8px;font-weight:700;text-align:right">${e.name}${c.prorated?`<div style="font-size:9px;color:#0891b2;font-weight:700;margin-top:2px">⏱️ محسوب بالتناسب — ${c.proDays} يوم عمل من ${fmt(c.proTotal)} (التحق ${e.date})</div>`:''}${(function(){var a=_ixArrearsMonths(e.name,e.job);return a.months.length>1?`<div style="font-size:9px;color:#dc2626;font-weight:600;margin-top:2px">⏳ متأخر عن: ${a.months.map(m=>m.label).join('، ')} (${a.months.length} أشهر)</div>`:'';})()}</td>
+        <td style="padding:6px 8px;font-weight:700;text-align:right">${e.name}${e.empCode?`<span style="font-size:9px;color:#94a3b8;font-weight:600;margin-right:6px" dir="ltr">#${e.empCode}</span>`:''}${c.prorated?`<div style="font-size:9px;color:#0891b2;font-weight:700;margin-top:2px">⏱️ محسوب بالتناسب — ${c.proDays} يوم عمل من ${fmt(c.proTotal)} (التحق ${e.date})</div>`:''}${(c.absentDays>0||c.lateDays>0)?`<div style="font-size:9px;color:#dc2626;font-weight:700;margin-top:2px">📅 غياب: ${c.absentDays} يوم${c.lateDays?' · تأخير: '+c.lateDays+' يوم':''} — خصم ${fmt(c.attDed)} ر.س</div>`:''}${(function(){var a=_ixArrearsMonths(e.name,e.job);return a.months.length>1?`<div style="font-size:9px;color:#dc2626;font-weight:600;margin-top:2px">⏳ متأخر عن: ${a.months.map(m=>m.label).join('، ')} (${a.months.length} أشهر)</div>`:'';})()}</td>
         <td style="text-align:center;padding:6px 5px"><span style="background:${CBG[cat]};color:${CCOLORS[cat]};padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;white-space:nowrap">${CNAMES[cat]}</span></td>
         <td style="text-align:center;padding:6px 5px;font-size:11px;color:#475569">${e.job}</td>
         <td style="text-align:center;padding:6px 5px;color:var(--blue);font-weight:700">${fmt(c.g)}</td>
@@ -2873,6 +2886,12 @@ function openRenameSheets(){
   document.getElementById('renameSheetsBody').innerHTML=html;
   document.getElementById('renameSheetsM').classList.add('open');
 }
+function renderTabs(){
+  for(let i=0;i<NCAT;i++){
+    const el=document.getElementById('tabLbl'+i);
+    if(el && CNAMES[i]) el.textContent=CNAMES[i];
+  }
+}
 function saveSheetNames(){
   for(let i=0;i<6;i++){
     const v=document.getElementById('cnInput'+i);
@@ -2882,8 +2901,8 @@ function saveSheetNames(){
   if(typeof cloudSaveMDB==='function'){try{cloudSaveMDB();}catch(e){}} else if(typeof cloudSaveDebounced==='function')cloudSaveDebounced();
   document.getElementById('renameSheetsM').classList.remove('open');
   // تحديث حي بدون إعادة تحميل (يحفظ التغيير فوراً)
+  renderTabs();
   if(typeof render==='function')render();
-  if(typeof renderTabs==='function')renderTabs();
   if(typeof loadMonth==='function')loadMonth();
   notify('✓ تم حفظ مسميات المسيرات — ظهرت في كل مكان');
 }
@@ -2939,6 +2958,7 @@ function buildTbl(rows,compact=false,editable=true){
         <div class="ab ab-d" title="حذف" onclick="delRow(${cat},${e.id})"><i class="ti ti-trash"></i></div>
         <div class="ab" title="نقل لمخالصة" onclick="transferToClr(${cat},${e.id})" style="color:#f43f5e;border-color:rgba(244,63,94,.4)" onmouseover="this.style.background='#f43f5e';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='#f43f5e'"><i class="ti ti-file-off"></i></div>
         <div class="ab" title="نقل إلى مسير آخر" onclick="event.stopPropagation();openMoveEmpModal(${cat},${e.id})" style="color:#0891b2;border-color:rgba(8,145,178,.4)" onmouseover="this.style.background='#0891b2';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='#0891b2'"><i class="ti ti-transfer"></i></div>
+        <div class="ab" title="الحضور والانصراف" onclick="event.stopPropagation();openAttendanceModal(${cat},${e.id})" style="color:#7c3aed;border-color:rgba(124,58,237,.4)" onmouseover="this.style.background='#7c3aed';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='#7c3aed'"><i class="ti ti-calendar-time"></i></div>
       </td>
     </tr>`;
   });
@@ -3840,6 +3860,77 @@ function saveApprovals(){
 }
 
 // =========== COMPARE ===========
+// ═══ نظام الحضور والانصراف ═══
+let _attCtx=null;
+const AT_LABELS={present:'حاضر',absent:'غائب',late:'متأخر',leave:'إجازة',off:'راحة أسبوعية'};
+const AT_COLORS={present:'#16a34a',absent:'#dc2626',late:'#d97706',leave:'#0891b2',off:'#94a3b8'};
+function openAttendanceModal(cat,id){
+  const e=(DB[cat]||[]).find(x=>x.id===id);
+  if(!e)return;
+  _attCtx={cat,id};
+  document.getElementById('attEmpName').textContent=e.name+' — '+MNS[mon-1]+' '+yr;
+  const daysInMonth=new Date(yr,mon,0).getDate();
+  const att=e.attendance||{};
+  const dailyRate=Math.round(((+e.salary||0)/daysInMonth)*100)/100;
+  let html='<div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:11px;color:#5b21b6">'
+    +'<i class="ti ti-info-circle"></i> قيمة اليوم الواحد لهذا الموظف: <strong dir="ltr">'+fmt(dailyRate)+'</strong> ر.س — الغياب يخصم يوم كامل، التأخر يخصم ربع يوم تلقائياً من الراتب.'
+    +'</div>';
+  html+='<div style="max-height:420px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:8px">'
+    +'<table style="width:100%;border-collapse:collapse;font-size:12px">'
+    +'<thead style="position:sticky;top:0;background:#0d1b35;color:#fff;z-index:1"><tr>'
+    +'<th style="padding:7px 5px">اليوم</th><th style="padding:7px 5px">الحالة</th><th style="padding:7px 5px">حضور</th><th style="padding:7px 5px">انصراف</th>'
+    +'</tr></thead><tbody>';
+  for(let d=1; d<=daysInMonth; d++){
+    const rec=att[d]||{status:'present',in:'',out:''};
+    const dow=new Date(yr,mon-1,d).toLocaleDateString('ar-SA',{weekday:'short'});
+    html+='<tr style="border-bottom:1px solid #f1f5f9">'
+      +'<td style="padding:5px;text-align:center;font-weight:700;color:#334155">'+d+' <span style="color:#94a3b8;font-size:10px">'+dow+'</span></td>'
+      +'<td style="padding:5px;text-align:center">'
+      +'<select id="attSt'+d+'" onchange="this.style.color=AT_COLORS[this.value]" style="color:'+AT_COLORS[rec.status||'present']+';font-weight:700;border:1px solid #e2e8f0;border-radius:6px;padding:4px 6px;font-family:Cairo,sans-serif;font-size:11px">'
+      +Object.keys(AT_LABELS).map(k=>'<option value="'+k+'"'+((rec.status||'present')===k?' selected':'')+'>'+AT_LABELS[k]+'</option>').join('')
+      +'</select></td>'
+      +'<td style="padding:5px;text-align:center"><input type="time" id="attIn'+d+'" value="'+(rec.in||'')+'" style="border:1px solid #e2e8f0;border-radius:6px;padding:3px;font-size:11px;width:100px"></td>'
+      +'<td style="padding:5px;text-align:center"><input type="time" id="attOut'+d+'" value="'+(rec.out||'')+'" style="border:1px solid #e2e8f0;border-radius:6px;padding:3px;font-size:11px;width:100px"></td>'
+      +'</tr>';
+  }
+  html+='</tbody></table></div>';
+  document.getElementById('attBody').innerHTML=html;
+  om('attM');
+}
+function saveAttendance(){
+  if(!_attCtx)return;
+  const {cat,id}=_attCtx;
+  const e=(DB[cat]||[]).find(x=>x.id===id);
+  if(!e)return;
+  const daysInMonth=new Date(yr,mon,0).getDate();
+  const att={};
+  for(let d=1; d<=daysInMonth; d++){
+    const st=document.getElementById('attSt'+d);
+    const inp=document.getElementById('attIn'+d);
+    const outp=document.getElementById('attOut'+d);
+    if(!st)continue;
+    att[d]={status:st.value, in:inp?inp.value:'', out:outp?outp.value:''};
+  }
+  e.attendance=att;
+  touchMonth();persistMonth();
+  cm('attM');render();
+  const absentCount=Object.values(att).filter(r=>r.status==='absent').length;
+  const lateCount=Object.values(att).filter(r=>r.status==='late').length;
+  notify('✓ تم حفظ الحضور — غياب: '+absentCount+' يوم، تأخير: '+lateCount+' يوم');
+}
+// حساب خصم الحضور/الغياب لموظف عن شهر محدد
+function attendanceDeduction(e, cy, cm_){
+  if(!e.attendance) return {ded:0, absentDays:0, lateDays:0};
+  const daysInMonth=new Date(cy,cm_,0).getDate();
+  const dailyRate=(+e.salary||0)/daysInMonth;
+  let absentDays=0, lateDays=0;
+  Object.values(e.attendance).forEach(r=>{
+    if(r.status==='absent') absentDays++;
+    else if(r.status==='late') lateDays++;
+  });
+  const ded=Math.round((absentDays*dailyRate + lateDays*dailyRate*0.25)*100)/100;
+  return {ded, absentDays, lateDays};
+}
 let _moveCtx=null;
 function openMoveEmpModal(cat,id){
   const e=(DB[cat]||[]).find(x=>x.id===id);
@@ -4058,6 +4149,12 @@ function nextEmpId(){
   return maxId+1;
 }
 
+function nextEmpCode(){
+  let seq=1;
+  try{ seq=parseInt(localStorage.getItem('inspectex_emp_code_seq')||'0',10)+1; }catch(e){}
+  try{ localStorage.setItem('inspectex_emp_code_seq', String(seq)); }catch(e){}
+  return 'EMP-'+String(seq).padStart(4,'0');
+}
 function saveEmp(){
   if(guardLocked())return;
   const name=document.getElementById('fn').value.trim();if(!name){alert('يرجى إدخال الاسم');return;}
@@ -4078,17 +4175,19 @@ function saveEmp(){
   if(eid!==null){
     const idx=(DB[ecat]||[]).findIndex(x=>x.id===eid);
     const prevPaid=idx!==-1?!!DB[ecat][idx].paid:false;
+    const prevCode=idx!==-1?DB[ecat][idx].empCode:undefined;
+    const prevAttendance=idx!==-1?DB[ecat][idx].attendance:undefined;
     if(cat===ecat){
       if(idx!==-1)DB[ecat][idx]={...DB[ecat][idx],...emp,paid:prevPaid};
       successMsg='✓ تم حفظ التعديلات';
     }else{
       if(idx!==-1)DB[ecat].splice(idx,1);
       const mid=nextEmpId();
-      DB[cat].push({id:mid,...emp,paid:prevPaid});
+      DB[cat].push({id:mid,...emp,empCode:prevCode||nextEmpCode(),attendance:prevAttendance,paid:prevPaid});
       successMsg='✓ تم حفظ التعديلات ونقل الموظف إلى '+CNAMES[cat];
     }
   }
-  else{const mid=nextEmpId();DB[cat].push({id:mid,...emp,addedAt:new Date().toISOString()});successMsg='✓ تم إضافة الموظف بتاريخ '+new Date().toLocaleDateString('en-GB');}
+  else{const mid=nextEmpId();DB[cat].push({id:mid,...emp,empCode:nextEmpCode(),addedAt:new Date().toISOString()});successMsg='✓ تم إضافة الموظف بتاريخ '+new Date().toLocaleDateString('en-GB')+' — كود الموظف: '+DB[cat][DB[cat].length-1].empCode;}
   touchMonth();
   const ok=persistMonth();
   cm('addM');render();
@@ -6253,7 +6352,7 @@ function saveToFile(){
       return "''";
     }
     // ALL fields preserved (including new ones)
-    var ALLF=['id','date','country','name','job','salary','baseSalary','raise','hous','trans','food','oallow','ins','ot','com','diff','adv','ded','paid','paidAt','ph','notes','_c','spon','iqama','iqamaExp','passport','passportExp','nationalId','contractType','contractEnd','bank','iban','gosi','otEligible','tickets','penalties','frozen'];
+    var ALLF=['id','date','country','name','job','salary','baseSalary','raise','hous','trans','food','oallow','ins','ot','com','diff','adv','ded','paid','paidAt','ph','notes','_c','spon','iqama','iqamaExp','passport','passportExp','nationalId','contractType','contractEnd','bank','iban','gosi','otEligible','tickets','penalties','frozen','empCode','attendance'];
     function eJS(e){
       return '{'+ALLF.filter(function(f){return f in e && e[f]!==undefined;}).map(function(f){return f+':'+jv(e[f]);}).join(',')+'}';
     }
@@ -6261,7 +6360,7 @@ function saveToFile(){
     var allEmps={0:[],1:[],2:[],3:[],4:[],5:[]};
     function addEmp(i,e){
       if(!allEmps[i].find(function(x){return x.id===e.id;})){
-        var o={_c:i,ot:0,com:0,diff:0,adv:0,ded:0,paid:false};
+        var o={_c:i,ot:0,com:0,diff:0,adv:0,ded:0,paid:false,attendance:{}};
         ALLF.forEach(function(f){ if(f in e && e[f]!==undefined) o[f]=e[f]; });
         o.ot=0;o.com=0;o.diff=0;o.adv=0;o.ded=0;o.paid=false;
         allEmps[i].push(o);
@@ -6356,7 +6455,7 @@ function saveMasterDB(){
   // Past months (before current mon/yr) are NEVER touched
   const mdb = getMasterDB();
   const FIXED_FIELDS = ['name','job','country','date','ph','baseSalary','raise','hous','trans','food','oallow','ins','iqama','spon','notes','_c','iqamaExp','passport','passportExp','nationalId','contractType','contractEnd','bank','iban','gosi','otEligible','tickets','penalties'];
-  const MONTHLY_FIELDS = ['ot','com','diff','adv','ded','paid','paidAt','arrears','arrearsNote','carried','carriedTo']; // never overwrite these
+  const MONTHLY_FIELDS = ['ot','com','diff','adv','ded','paid','paidAt','arrears','arrearsNote','carried','carriedTo','attendance']; // never overwrite these
 
   Object.keys(MDB).forEach(key=>{
     // Parse key: "yr-mon"
@@ -8013,7 +8112,7 @@ function closeSystem(){
           if(DB[i]&&DB[i].length>0){
             // Zero out payroll fields — only base salary stays
             MDB[k][i]=JSON.parse(JSON.stringify(DB[i])).map(function(e){
-              return Object.assign({},e,{ot:0,com:0,diff:0,adv:0,ded:0,paid:false});
+              return Object.assign({},e,{ot:0,com:0,diff:0,adv:0,ded:0,paid:false,attendance:{}});
             });
           }
         }
@@ -8042,7 +8141,7 @@ try{
     MDB[_k]={_t:1};
     for(var _i=0;_i<6;_i++){
       if(SEED_DB[_i]&&SEED_DB[_i].length>0){
-        MDB[_k][_i]=SEED_DB[_i].map(function(e){return Object.assign({},e,{ot:0,com:0,diff:0,adv:0,ded:0,paid:false});});
+        MDB[_k][_i]=SEED_DB[_i].map(function(e){return Object.assign({},e,{ot:0,com:0,diff:0,adv:0,ded:0,paid:false,attendance:{}});});
       }
     }
     try{localStorage.setItem('inspectex_mdb',JSON.stringify(MDB));}catch(e){}
@@ -8063,7 +8162,7 @@ try{
       [0,1,2,3,4,5].forEach(function(i){
         (mm[i]||[]).forEach(function(e){
           if(!SEED_DB[i].find(function(x){return x.id===e.id;})){
-            SEED_DB[i].push(Object.assign({},e,{ot:0,com:0,diff:0,adv:0,ded:0,paid:false}));
+            SEED_DB[i].push(Object.assign({},e,{ot:0,com:0,diff:0,adv:0,ded:0,paid:false,attendance:{}}));
           }
         });
       });
@@ -8087,6 +8186,7 @@ try{
 })();
 jumpToLatestDataMonth();
 loadMonth();
+renderTabs();
 renderApproverWidget();
 render();
 initSecurity();
@@ -8218,7 +8318,7 @@ function repeatLastMonth(){
   if(newMon > 12){ newMon = 1; newYr++; }
   if(!confirm('نسخ '+count+' موظف من '+MNS[mon-1]+' '+yr+' إلى '+MNS[newMon-1]+' '+newYr+'؟\nتُصفّر القيم المتغيّرة (إضافي/عمولة/فرق/سلفة/خصم) وحالة الصرف.')) return;
   const copy={};
-  for(let i=0;i<NCAT;i++){ copy[i]=(DB[i]||[]).map(e=>({...e,ot:0,com:0,diff:0,adv:0,ded:0,paid:false})); }
+  for(let i=0;i<NCAT;i++){ copy[i]=(DB[i]||[]).map(e=>({...e,ot:0,com:0,diff:0,adv:0,ded:0,paid:false,attendance:{}})); }
   persistMonth();
   MDB[newYr+'-'+newMon]=copy;
   try{ localStorage.setItem('inspectex_mdb',JSON.stringify(MDB)); }catch(e){}
@@ -8325,6 +8425,16 @@ function filterMoreMenu(q){
 }
 function showApprovalLinkModal(scope){
   scope = scope || currentAprScope || 'all';
+  // ⚡ إصلاح: لو المسير لسا "مسودة" ولم يُرحّل للاعتماد، رحّله تلقائياً الآن —
+  // وإلا فالرابط اللي بترسله للمعتمد يفتحله صفحة فاضية "لم يتم الإرسال بعد"
+  if(subStatus(scope)==='draft'){
+    var rows=scopeRows(scope);
+    if(!rows.length){ notify('⚠️ لا توجد بيانات لمسير '+scopeLabel(scope)+' بهذا الشهر — لا يمكن إنشاء رابط اعتماد'); return; }
+    setSubStatus('submitted', scope);
+    if(typeof auditLog==='function')auditLog('ترحيل_للاعتماد',scopeLabel(scope)+' — '+MNS[mon-1]+' '+yr);
+    if(typeof renderApproval==='function' && document.getElementById('mc')) renderApproval(document.getElementById('mc'));
+    notify('✓ تم ترحيل '+scopeLabel(scope)+' للاعتماد تلقائياً قبل إنشاء الرابط');
+  }
   var existing=document.getElementById('approvalLinkModal');
   if(existing) existing.remove();
   var base = window.location.origin + window.location.pathname;
