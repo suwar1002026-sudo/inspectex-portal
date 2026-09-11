@@ -2873,7 +2873,7 @@ function calc(e, ctxYr, ctxMon){
   const d=(+e.adv||0)+(+e.ins||0)+(+e.ded||0)+att.ded;
   return{g,d,n:g-d,base:basic,hous,trans,total,monthly_vars,arrears,prorated,proDays,proTotal,attDed:att.ded,absentDays:att.absentDays,lateDays:att.lateDays};
 }
-function catT(i){let g=0,d=0,n=0,p=0,pc=0;(DB[i]||[]).forEach(e=>{const c=calc(e);g+=c.g;d+=c.d;n+=c.n;if(e.paid){p+=c.n;pc++;}});return{g,d,n,p,pc,cnt:(DB[i]||[]).length};}
+function catT(i){let g=0,d=0,n=0,p=0,pc=0,cnt=0;(DB[i]||[]).forEach(e=>{if(e.frozen)return;cnt++;const c=calc(e);g+=c.g;d+=c.d;n+=c.n;if(e.paid){p+=c.n;pc++;}});return{g,d,n,p,pc,cnt};}
 function allT(){let g=0,d=0,n=0,cnt=0,pc=0;for(let i=0;i<NCAT;i++){const t=catT(i);g+=t.g;d+=t.d;n+=t.n;cnt+=t.cnt;pc+=t.pc;}return{g,d,n,cnt,pc};}
 function allRows(){let r=[];for(let i=0;i<NCAT;i++)(DB[i]||[]).forEach(e=>r.push({...e,_c:i}));return r;}
 function buildApprovalEmployeeList(){
@@ -2951,7 +2951,7 @@ function _ixArrearsMonths(name, job){
   return {months:months, total:total};
 }
 function renderPayroll(mc){
-  const allR=allRows();
+  const allR=allRows().filter(e=>!e.frozen);
   const unpaid=allR.filter(e=>!e.paid);
   const paid=allR.filter(e=>e.paid);
   
@@ -8474,8 +8474,20 @@ async function cloudLoadMDB(){
 // Debounced cloud save (waits 2s after last edit)
 function cloudSaveDebounced(){
   if(_cloudSaveTimer) clearTimeout(_cloudSaveTimer);
-  _cloudSaveTimer = setTimeout(cloudSaveMDB, 2000);
+  const ci=document.getElementById('cloudStatus');
+  if(ci) ci.innerHTML='<span style="color:#0891b2;font-size:11px">⏳ جارٍ حفظ التعديل...</span>';
+  _cloudSaveTimer = setTimeout(cloudSaveMDB, 600);
 }
+// حفظ احتياطي دوري كل 8 ثوانٍ طالما فيه تغييرات لم تُرفع بعد —
+// يحمي من حالة إغلاق التبويب/المتصفح بسرعة قبل ما ينتهي حفظ الـ debounce
+// (متصفحات كثيرة تُلغي طلبات الشبكة غير المكتملة عند إغلاق الصفحة)
+setInterval(function(){
+  try{
+    if(typeof _hasUnsavedChanges!=='undefined' && _hasUnsavedChanges && typeof cloudSaveMDB==='function'){
+      cloudSaveMDB();
+    }
+  }catch(e){}
+}, 8000);
 
 // Sync on startup: compare cloud vs local, use whichever has more data
 async function cloudSyncOnStartup(){
